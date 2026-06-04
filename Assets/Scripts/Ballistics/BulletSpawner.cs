@@ -31,7 +31,7 @@ public class BulletSpawner : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetButtonDown("Fire1"))
+        if (UnityEngine.InputSystem.Keyboard.current.spaceKey.wasPressedThisFrame)
         {
             Fire();
         }
