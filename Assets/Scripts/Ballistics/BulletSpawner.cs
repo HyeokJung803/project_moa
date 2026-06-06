@@ -162,6 +162,8 @@ public class BulletSpawner : MonoBehaviour
         particlesObject.transform.rotation = Quaternion.LookRotation(normal);
 
         ParticleSystem particles = particlesObject.AddComponent<ParticleSystem>();
+        particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
         ParticleSystem.MainModule main = particles.main;
         main.loop = false;
         main.playOnAwake = false;
