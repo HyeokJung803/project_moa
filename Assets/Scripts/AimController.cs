@@ -23,7 +23,7 @@ public class AimController : MonoBehaviour
     [SerializeField] private Vector3 hipLocalEuler = new Vector3(0f, -90f, 0f);
     [SerializeField] private Vector3 aimLocalEuler = new Vector3(0f, -90f, 0f);
     [SerializeField] private float weaponPoseSpeed = 14f;
-    [SerializeField] private float scopedWeaponHideThreshold = 0.12f;
+    [SerializeField] private float scopedWeaponHideThreshold = 0.02f;
 
     [Header("Recoil")]
     [SerializeField] private float hipRecoilPitch = 2.4f;
@@ -204,7 +204,13 @@ public class AimController : MonoBehaviour
             return;
         }
 
-        bool showWeapon = _aimProgress < scopedWeaponHideThreshold;
+        bool showWeapon = !_isAiming && _aimProgress < scopedWeaponHideThreshold;
+
+        if (weaponVisual != null && weaponVisual.gameObject.activeSelf != showWeapon)
+        {
+            weaponVisual.gameObject.SetActive(showWeapon);
+        }
+
         for (int i = 0; i < _weaponRenderers.Length; i++)
         {
             if (_weaponRenderers[i] != null)

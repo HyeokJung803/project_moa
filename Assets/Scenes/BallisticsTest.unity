@@ -298,7 +298,7 @@ MonoBehaviour:
   hipLocalEuler: {x: 0, y: -90, z: 0}
   aimLocalEuler: {x: 0, y: -90, z: 0}
   weaponPoseSpeed: 14
-  scopedWeaponHideThreshold: 0.12
+  scopedWeaponHideThreshold: 0.02
   hipRecoilPitch: 2.4
   aimRecoilPitch: 0.9
   recoilRecoverySpeed: 9

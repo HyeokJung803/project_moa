@@ -48,7 +48,7 @@ public class MountainRangeBuilder : MonoBehaviour
     private void CreateMaterials()
     {
         _grassMaterial = MakeMaterial("Range Grass", new Color(0.27f, 0.36f, 0.22f));
-        _dirtMaterial = MakeMaterial("Packed Dirt", new Color(0.45f, 0.39f, 0.32f));
+        _dirtMaterial = MakeMaterial("Packed Dirt", new Color(0.24f, 0.22f, 0.18f));
         _rockMaterial = MakeMaterial("Mountain Rock", new Color(0.32f, 0.34f, 0.34f));
         _woodMaterial = MakeMaterial("Range Wood", new Color(0.42f, 0.28f, 0.17f));
         _whiteMaterial = MakeMaterial("Target White", new Color(0.92f, 0.9f, 0.84f));
@@ -129,7 +129,7 @@ public class MountainRangeBuilder : MonoBehaviour
         meshCollider.sharedMesh = mesh;
         _createdObjects.Add(terrain);
 
-        CreateBox("Central Dirt Lane", new Vector3(0f, 0.035f, 280f), new Vector3(18f, 0.05f, 620f), _dirtMaterial);
+        CreateBox("Central Dirt Lane", new Vector3(0f, 0.018f, 290f), new Vector3(4.2f, 0.035f, 540f), _dirtMaterial);
     }
 
     private void BuildFiringLine()
@@ -184,10 +184,11 @@ public class MountainRangeBuilder : MonoBehaviour
 
     private void BuildBackstop()
     {
-        CreateBox("Impact Berm Center", new Vector3(0f, 4f, 535f), new Vector3(40f, 8f, 10f), _dirtMaterial);
-        CreateBox("Impact Berm Left", new Vector3(-28f, 5f, 530f), new Vector3(18f, 10f, 12f), _dirtMaterial);
-        CreateBox("Impact Berm Right", new Vector3(28f, 5f, 530f), new Vector3(18f, 10f, 12f), _dirtMaterial);
-        CreateBox("Rock Face Backdrop", new Vector3(0f, 22f, 610f), new Vector3(180f, 45f, 18f), _rockMaterial);
+        CreateBox("Impact Berm Center", new Vector3(0f, 2.4f, 535f), new Vector3(34f, 4.8f, 10f), _dirtMaterial);
+        CreateBox("Impact Berm Left", new Vector3(-26f, 2.8f, 530f), new Vector3(16f, 5.6f, 12f), _dirtMaterial);
+        CreateBox("Impact Berm Right", new Vector3(26f, 2.8f, 530f), new Vector3(16f, 5.6f, 12f), _dirtMaterial);
+        CreateBox("Rock Outcrop Left", new Vector3(-70f, 12f, 610f), new Vector3(34f, 24f, 18f), _rockMaterial);
+        CreateBox("Rock Outcrop Right", new Vector3(70f, 13f, 615f), new Vector3(38f, 26f, 18f), _rockMaterial);
     }
 
     private void BuildWindFlags()
