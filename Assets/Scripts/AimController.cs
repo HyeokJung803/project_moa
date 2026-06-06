@@ -9,6 +9,7 @@ public class AimController : MonoBehaviour
     [Header("References")]
     [SerializeField] private Camera targetCamera;
     [SerializeField] private Transform weaponVisual;
+    [SerializeField] private bool hideWeaponVisual = true;
     [SerializeField] private Material weaponMaterialOverride;
     [SerializeField] private BulletSpawner bulletSpawner;
 
@@ -65,6 +66,7 @@ public class AimController : MonoBehaviour
             _weaponRenderers = weaponVisual.GetComponentsInChildren<Renderer>(true);
             ApplyWeaponMaterialOverride();
             CacheWeaponBoundsCenter();
+            ApplyWeaponVisibility(false);
         }
     }
 
@@ -122,6 +124,11 @@ public class AimController : MonoBehaviour
     private void ApplyWeaponPose()
     {
         if (weaponVisual == null)
+        {
+            return;
+        }
+
+        if (hideWeaponVisual)
         {
             return;
         }
@@ -204,11 +211,20 @@ public class AimController : MonoBehaviour
             return;
         }
 
-        bool showWeapon = !_isAiming && _aimProgress < scopedWeaponHideThreshold;
+        bool showWeapon = !hideWeaponVisual && !_isAiming && _aimProgress < scopedWeaponHideThreshold;
+        ApplyWeaponVisibility(showWeapon);
+    }
 
+    private void ApplyWeaponVisibility(bool showWeapon)
+    {
         if (weaponVisual != null && weaponVisual.gameObject.activeSelf != showWeapon)
         {
             weaponVisual.gameObject.SetActive(showWeapon);
+        }
+
+        if (_weaponRenderers == null)
+        {
+            return;
         }
 
         for (int i = 0; i < _weaponRenderers.Length; i++)

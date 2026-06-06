@@ -288,6 +288,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AimController
   targetCamera: {fileID: 330585545}
   weaponVisual: {fileID: 1920471301}
+  hideWeaponVisual: 1
   weaponMaterialOverride: {fileID: 2100000, guid: a1f8b3e9068647719dc34fe546c314d0, type: 2}
   bulletSpawner: {fileID: 899874162}
   hipFov: 60

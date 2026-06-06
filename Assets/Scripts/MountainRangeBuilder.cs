@@ -129,7 +129,7 @@ public class MountainRangeBuilder : MonoBehaviour
         meshCollider.sharedMesh = mesh;
         _createdObjects.Add(terrain);
 
-        CreateBox("Central Dirt Lane", new Vector3(0f, 0.018f, 290f), new Vector3(4.2f, 0.035f, 540f), _dirtMaterial);
+        BuildRangeCenterLine();
     }
 
     private void BuildFiringLine()
@@ -142,6 +142,16 @@ public class MountainRangeBuilder : MonoBehaviour
         for (int i = -3; i <= 3; i++)
         {
             CreateBox($"Firing Lane Marker {i}", new Vector3(i * 2.6f, 0.16f, -1f), new Vector3(0.05f, 0.04f, 5.5f), _yellowMaterial);
+        }
+    }
+
+    private void BuildRangeCenterLine()
+    {
+        for (int i = 1; i <= 10; i++)
+        {
+            float z = i * 50f;
+            CreateBox($"Left Range Stake {z:0}m", new Vector3(-2.4f, 0.28f, z), new Vector3(0.08f, 0.56f, 0.08f), _yellowMaterial);
+            CreateBox($"Right Range Stake {z:0}m", new Vector3(2.4f, 0.28f, z), new Vector3(0.08f, 0.56f, 0.08f), _yellowMaterial);
         }
     }
 
@@ -184,11 +194,9 @@ public class MountainRangeBuilder : MonoBehaviour
 
     private void BuildBackstop()
     {
-        CreateBox("Impact Berm Center", new Vector3(0f, 2.4f, 535f), new Vector3(34f, 4.8f, 10f), _dirtMaterial);
-        CreateBox("Impact Berm Left", new Vector3(-26f, 2.8f, 530f), new Vector3(16f, 5.6f, 12f), _dirtMaterial);
-        CreateBox("Impact Berm Right", new Vector3(26f, 2.8f, 530f), new Vector3(16f, 5.6f, 12f), _dirtMaterial);
-        CreateBox("Rock Outcrop Left", new Vector3(-70f, 12f, 610f), new Vector3(34f, 24f, 18f), _rockMaterial);
-        CreateBox("Rock Outcrop Right", new Vector3(70f, 13f, 615f), new Vector3(38f, 26f, 18f), _rockMaterial);
+        CreateMound("Impact Berm Center", new Vector3(0f, 1.8f, 535f), new Vector3(28f, 3.6f, 8f), _dirtMaterial);
+        CreateMound("Impact Berm Left", new Vector3(-24f, 1.9f, 530f), new Vector3(14f, 3.8f, 8f), _dirtMaterial);
+        CreateMound("Impact Berm Right", new Vector3(24f, 1.9f, 530f), new Vector3(14f, 3.8f, 8f), _dirtMaterial);
     }
 
     private void BuildWindFlags()
@@ -229,6 +237,18 @@ public class MountainRangeBuilder : MonoBehaviour
         box.GetComponent<Renderer>().sharedMaterial = material;
         _createdObjects.Add(box);
         return box;
+    }
+
+    private GameObject CreateMound(string objectName, Vector3 position, Vector3 scale, Material material)
+    {
+        GameObject mound = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        mound.name = objectName;
+        mound.transform.SetParent(transform, false);
+        mound.transform.position = position;
+        mound.transform.localScale = scale;
+        mound.GetComponent<Renderer>().sharedMaterial = material;
+        _createdObjects.Add(mound);
+        return mound;
     }
 
     private void CreateRing(string objectName, Vector3 position, float radius, Material material)
