@@ -129,7 +129,7 @@ public class MountainRangeBuilder : MonoBehaviour
         meshCollider.sharedMesh = mesh;
         _createdObjects.Add(terrain);
 
-        BuildRangeCenterLine();
+        // Keep the scope picture clean while the range blockout is still evolving.
     }
 
     private void BuildFiringLine()
