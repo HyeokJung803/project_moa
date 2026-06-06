@@ -1,84 +1,242 @@
-﻿using UnityEngine;
+using System.Collections;
+using UnityEngine;
 
 /// <summary>
-/// 플레이어 입력을 받아 탄환을 생성하고 초기 조건을 주입하는 발사 관리자.
-/// 스코프 Elevation/Windage 다이얼 값을 총구 각도 오프셋으로 변환하는
-/// MOA → 각도(radian) 변환 로직 포함.
+/// Creates bullets from player input and injects initial ballistic conditions.
+/// Scope turret values are converted from MOA into local angular offsets.
 /// </summary>
 public class BulletSpawner : MonoBehaviour
 {
-    [Header("레퍼런스")]
-    [SerializeField] private GameObject bulletPrefab;       // Bullet 컴포넌트 부착된 프리팹
-    [SerializeField] private Transform muzzleTransform;     // 총구 위치/방향 Transform
-    [SerializeField] private BallisticsData ballisticsData; // 탄환 데이터 에셋
+    [Header("References")]
+    [SerializeField] private GameObject bulletPrefab;
+    [SerializeField] private Transform muzzleTransform;
+    [SerializeField] private Transform aimTransform;
+    [SerializeField] private BallisticsData ballisticsData;
 
-    [Header("케스트렐 측정값 (임시 — 추후 KestrelUI에서 주입)")]
-    [SerializeField] private float ambientTemperature = 15f;   // °C
-    [SerializeField] private float altitude = 100f;            // m
+    [Header("Kestrel Measurements (temporary)")]
+    [SerializeField] private float ambientTemperature = 15f;
+    [SerializeField] private float altitude = 100f;
 
-    [Header("바람 (임시 — 추후 WindSystem에서 주입)")]
-    [SerializeField] private Vector3 windVelocity = new Vector3(2f, 0f, 0f); // m/s
+    [Header("Wind (temporary)")]
+    [SerializeField] private Vector3 windVelocity = new Vector3(2f, 0f, 0f);
 
-    [Header("스코프 다이얼 조절값")]
-    [Tooltip("Elevation 터렛 누적값 (MOA 단위). 마우스 휠로 조작 예정.")]
+    [Header("Scope Turrets")]
     [SerializeField] private float elevationMOA = 0f;
-
-    [Tooltip("Windage 터렛 누적값 (MOA 단위).")]
     [SerializeField] private float windageMOA = 0f;
 
-    // 1 MOA = 1/60 degree = 0.000290888 radian
+    [Header("Fire Feedback")]
+    [SerializeField] private bool enableProceduralFeedback = true;
+    [SerializeField] private float muzzleFlashDuration = 0.045f;
+    [SerializeField] private float muzzleFlashIntensity = 5f;
+    [SerializeField] private Color muzzleFlashColor = new Color(1f, 0.68f, 0.28f, 1f);
+
+    public float ElevationMOA => elevationMOA;
+    public float WindageMOA => windageMOA;
+    public event System.Action OnFired;
+
     private const float MOA_TO_RAD = 0.000290888f;
+
+    private Light _muzzleFlashLight;
+    private ParticleSystem _muzzleParticles;
+    private AudioSource _audioSource;
+    private AudioClip _shotClip;
+    private AudioClip _impactClip;
+
+    private void Awake()
+    {
+        if (aimTransform == null)
+        {
+            Camera mainCamera = Camera.main;
+            aimTransform = mainCamera != null ? mainCamera.transform : muzzleTransform;
+        }
+
+        if (enableProceduralFeedback)
+        {
+            SetupProceduralFeedback();
+        }
+    }
 
     private void Update()
     {
-        if (UnityEngine.InputSystem.Keyboard.current.spaceKey.wasPressedThisFrame)
+        UnityEngine.InputSystem.Keyboard keyboard = UnityEngine.InputSystem.Keyboard.current;
+
+        if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame)
         {
             Fire();
         }
     }
 
+    public void SetElevationMOA(float moa)
+    {
+        elevationMOA = moa;
+    }
+
+    public void SetWindageMOA(float moa)
+    {
+        windageMOA = moa;
+    }
+
+    public void SetScopeAdjustment(float elevation, float windage)
+    {
+        elevationMOA = elevation;
+        windageMOA = windage;
+    }
+
     private void Fire()
     {
-        // ── 총구 방향에 MOA 오프셋 적용 ─────────────────────────────────
-        // Elevation: 총구를 로컬 X축 기준 상방 회전
-        // Windage: 총구를 로컬 Y축 기준 좌우 회전
+        if (bulletPrefab == null || muzzleTransform == null || ballisticsData == null)
+        {
+            Debug.LogWarning("[BulletSpawner] Missing bullet prefab, muzzle transform, or ballistics data.");
+            return;
+        }
+
         float elevationRad = elevationMOA * MOA_TO_RAD;
         float windageRad = windageMOA * MOA_TO_RAD;
 
-        Quaternion muzzleOffsetRotation = Quaternion.Euler(
-            -elevationRad * Mathf.Rad2Deg,  // Unity는 degree 입력
+        Transform directionTransform = aimTransform != null ? aimTransform : muzzleTransform;
+        Quaternion fireRotation = directionTransform.rotation * Quaternion.Euler(
+            -elevationRad * Mathf.Rad2Deg,
              windageRad * Mathf.Rad2Deg,
-             0f
-        );
+             0f);
 
-        Vector3 fireDirection = muzzleOffsetRotation * muzzleTransform.forward;
+        Vector3 fireDirection = fireRotation * Vector3.forward;
 
-        // ── 탄환 생성 및 초기 조건 주입 ─────────────────────────────────
-        GameObject bulletObj = Instantiate(bulletPrefab, muzzleTransform.position, Quaternion.LookRotation(fireDirection));
+        GameObject bulletObj = Instantiate(
+            bulletPrefab,
+            muzzleTransform.position,
+            Quaternion.LookRotation(fireDirection));
+
         Bullet bullet = bulletObj.GetComponent<Bullet>();
-
         bullet.ballisticsData = ballisticsData;
         bullet.initialVelocity = fireDirection * ballisticsData.muzzleVelocity;
         bullet.ambientTemperature = ambientTemperature;
         bullet.altitude = altitude;
         bullet.windVelocity = windVelocity;
-
-        // ── 탄착 이벤트 구독 (TOF 기반 명중음 딜레이 처리) ──────────────
         bullet.OnImpact += HandleBulletImpact;
+
+        OnFired?.Invoke();
+        PlayFireFeedback();
     }
 
-    /// <summary>
-    /// 탄착 콜백: TOF(비행시간)를 기반으로 명중음 딜레이 타이밍을 계산합니다.
-    /// 음속 343m/s 기준, 거리 / 343 = 소리 도달 추가 딜레이.
-    /// </summary>
     private void HandleBulletImpact(Vector3 impactPoint, Vector3 normal, float timeOfFlight)
     {
         float distanceToImpact = Vector3.Distance(muzzleTransform.position, impactPoint);
-        float soundDelay = distanceToImpact / 343f;  // 음속 343 m/s
+        float soundDelay = distanceToImpact / 343f;
 
-        Debug.Log($"[BulletSpawner] TOF: {timeOfFlight:F3}s | 거리: {distanceToImpact:F1}m "
-                + $"| 명중음 딜레이: {soundDelay:F3}s");
+        Debug.Log($"[BulletSpawner] TOF: {timeOfFlight:F3}s | Distance: {distanceToImpact:F1}m "
+                + $"| Impact sound delay: {soundDelay:F3}s");
 
-        // 추후 연결: StartCoroutine(PlayImpactSoundDelayed(soundDelay, impactPoint));
+        if (enableProceduralFeedback && _impactClip != null)
+        {
+            StartCoroutine(PlayImpactSoundDelayed(soundDelay));
+        }
+    }
+
+    private void SetupProceduralFeedback()
+    {
+        if (muzzleTransform != null)
+        {
+            GameObject flashObject = new GameObject("Procedural Muzzle Flash");
+            flashObject.transform.SetParent(muzzleTransform, false);
+
+            _muzzleFlashLight = flashObject.AddComponent<Light>();
+            _muzzleFlashLight.type = LightType.Point;
+            _muzzleFlashLight.range = 3f;
+            _muzzleFlashLight.intensity = 0f;
+            _muzzleFlashLight.color = muzzleFlashColor;
+
+            _muzzleParticles = flashObject.AddComponent<ParticleSystem>();
+            ParticleSystem.MainModule main = _muzzleParticles.main;
+            main.loop = false;
+            main.playOnAwake = false;
+            main.startLifetime = 0.055f;
+            main.startSpeed = 2.6f;
+            main.startSize = 0.18f;
+            main.startColor = muzzleFlashColor;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+
+            ParticleSystem.EmissionModule emission = _muzzleParticles.emission;
+            emission.enabled = false;
+
+            ParticleSystem.ShapeModule shape = _muzzleParticles.shape;
+            shape.enabled = true;
+            shape.shapeType = ParticleSystemShapeType.Cone;
+            shape.angle = 12f;
+            shape.radius = 0.025f;
+        }
+
+        _audioSource = GetComponent<AudioSource>();
+        if (_audioSource == null)
+        {
+            _audioSource = gameObject.AddComponent<AudioSource>();
+        }
+
+        _audioSource.playOnAwake = false;
+        _audioSource.spatialBlend = 0.25f;
+        _audioSource.volume = 0.8f;
+
+        _shotClip = CreateNoiseClip("Procedural Rifle Shot", 0.12f, 0.78f, 80f);
+        _impactClip = CreateNoiseClip("Procedural Distant Impact", 0.07f, 0.34f, 35f);
+    }
+
+    private void PlayFireFeedback()
+    {
+        if (!enableProceduralFeedback)
+        {
+            return;
+        }
+
+        if (_shotClip != null && _audioSource != null)
+        {
+            _audioSource.PlayOneShot(_shotClip);
+        }
+
+        if (_muzzleParticles != null)
+        {
+            _muzzleParticles.Emit(14);
+        }
+
+        if (_muzzleFlashLight != null)
+        {
+            StopCoroutine(nameof(FlashRoutine));
+            StartCoroutine(nameof(FlashRoutine));
+        }
+    }
+
+    private IEnumerator FlashRoutine()
+    {
+        _muzzleFlashLight.intensity = muzzleFlashIntensity;
+        yield return new WaitForSeconds(muzzleFlashDuration);
+        _muzzleFlashLight.intensity = 0f;
+    }
+
+    private IEnumerator PlayImpactSoundDelayed(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        if (_audioSource != null && _impactClip != null)
+        {
+            _audioSource.PlayOneShot(_impactClip, 0.55f);
+        }
+    }
+
+    private static AudioClip CreateNoiseClip(string clipName, float duration, float amplitude, float decay)
+    {
+        const int sampleRate = 44100;
+        int samples = Mathf.CeilToInt(sampleRate * duration);
+        float[] data = new float[samples];
+
+        for (int i = 0; i < samples; i++)
+        {
+            float t = i / (float)sampleRate;
+            float envelope = Mathf.Exp(-decay * t);
+            float lowThump = Mathf.Sin(2f * Mathf.PI * 90f * t) * 0.45f;
+            float noise = Random.Range(-1f, 1f);
+            data[i] = (noise * 0.55f + lowThump) * envelope * amplitude;
+        }
+
+        AudioClip clip = AudioClip.Create(clipName, samples, 1, sampleRate, false);
+        clip.SetData(data, 0);
+        return clip;
     }
 }

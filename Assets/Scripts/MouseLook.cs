@@ -3,17 +3,14 @@ using UnityEngine;
 public class MouseLook : MonoBehaviour
 {
     public float mouseSensitivity = 100f;
-    public Transform playerBody;
 
+    private Transform _gunTransform;
     private float _xRotation = 0f;
 
     private void Start()
     {
         Cursor.lockState = CursorLockMode.Locked;
-
-        // playerBody가 비어있으면 부모 오브젝트를 자동으로 찾음
-        if (playerBody == null)
-            playerBody = transform.parent;
+        _gunTransform = transform.parent;
     }
 
     private void Update()
@@ -23,9 +20,8 @@ public class MouseLook : MonoBehaviour
 
         _xRotation -= mouseY;
         _xRotation = Mathf.Clamp(_xRotation, -80f, 80f);
-        transform.localRotation = Quaternion.Euler(_xRotation, 0f, 0f);
+        transform.localEulerAngles = new Vector3(_xRotation, 0f, 0f);
 
-        if (playerBody != null)
-            playerBody.Rotate(Vector3.up * mouseX);
+        _gunTransform.Rotate(Vector3.up * mouseX, Space.World);
     }
 }
