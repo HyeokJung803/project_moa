@@ -19,8 +19,8 @@ public class Bullet : MonoBehaviour
     [HideInInspector] public Vector3 windVelocity;      // 바람 벡터 (m/s, 월드 공간)
 
     // ── 이벤트 ──────────────────────────────────────────────────────────────
-    /// <summary>탄착 이벤트: 충돌 위치, 충돌 표면 법선, 비행 시간(TOF) 전달</summary>
-    public System.Action<Vector3, Vector3, float> OnImpact;
+    /// <summary>탄착 이벤트: 충돌 위치, 충돌 표면 법선, 비행 시간(TOF), 충돌체 전달</summary>
+    public System.Action<Vector3, Vector3, float, Collider> OnImpact;
 
     // ── 내부 상태 ────────────────────────────────────────────────────────────
     private Vector3 _velocity;          // 현재 속도 벡터 (m/s)
@@ -132,7 +132,7 @@ public class Bullet : MonoBehaviour
 
         // 이벤트 발행 → BulletSpawner 또는 ImpactManager에서 수신
         // (먼지 파티클, TOF 기반 명중음 딜레이, 점수 처리 등)
-        OnImpact?.Invoke(hit.point, hit.normal, _timeOfFlight);
+        OnImpact?.Invoke(hit.point, hit.normal, _timeOfFlight, hit.collider);
 
         Debug.Log($"[Bullet] 탄착 | 위치: {hit.point} | TOF: {_timeOfFlight:F3}s "
                 + $"| 충돌체: {hit.collider.name} | 잔여속도: {_velocity.magnitude:F1} m/s");

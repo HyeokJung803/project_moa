@@ -21,6 +21,8 @@ public class ScopeOverlayController : MonoBehaviour
     private CanvasGroup _canvasGroup;
     private RectTransform _reticleRoot;
     private Text _turretText;
+    private Text _hitText;
+    private float _hitTextTimer;
 
     private void Awake()
     {
@@ -35,6 +37,22 @@ public class ScopeOverlayController : MonoBehaviour
         }
 
         BuildOverlay();
+    }
+
+    private void OnEnable()
+    {
+        if (bulletSpawner != null)
+        {
+            bulletSpawner.OnImpactFeedback += HandleImpactFeedback;
+        }
+    }
+
+    private void OnDisable()
+    {
+        if (bulletSpawner != null)
+        {
+            bulletSpawner.OnImpactFeedback -= HandleImpactFeedback;
+        }
     }
 
     private void LateUpdate()
@@ -62,6 +80,8 @@ public class ScopeOverlayController : MonoBehaviour
                     $"ELEV {bulletSpawner.ElevationMOA:+0.00;-0.00;0.00} MOA   WIND {bulletSpawner.WindageMOA:+0.00;-0.00;0.00} MOA";
             }
         }
+
+        UpdateHitText();
     }
 
     private void BuildOverlay()
@@ -112,7 +132,9 @@ public class ScopeOverlayController : MonoBehaviour
             CreateLine($"Elev Tick {i}", _reticleRoot, new Vector2(16f, 2f), new Vector2(0f, i * 42f));
         }
 
-        _turretText = CreateText("Turret Readout", canvasRect);
+        _turretText = CreateText("Turret Readout", canvasRect, 46f, 20);
+        _hitText = CreateText("Impact Readout", canvasRect, 86f, 24);
+        _hitText.color = new Color(1f, 0.92f, 0.72f, 0f);
     }
 
     private Texture2D CreateMaskTexture()
@@ -177,7 +199,7 @@ public class ScopeOverlayController : MonoBehaviour
         rect.anchoredPosition = position;
     }
 
-    private Text CreateText(string name, Transform parent)
+    private Text CreateText(string name, Transform parent, float bottomOffset, int fontSize)
     {
         GameObject obj = new GameObject(name);
         obj.transform.SetParent(parent, false);
@@ -185,7 +207,7 @@ public class ScopeOverlayController : MonoBehaviour
         text.raycastTarget = false;
         text.alignment = TextAnchor.MiddleCenter;
         text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        text.fontSize = 20;
+        text.fontSize = fontSize;
         text.color = new Color(1f, 1f, 1f, 0.82f);
 
         RectTransform rect = text.rectTransform;
@@ -193,8 +215,33 @@ public class ScopeOverlayController : MonoBehaviour
         rect.anchorMax = new Vector2(0.5f, 0f);
         rect.pivot = new Vector2(0.5f, 0f);
         rect.sizeDelta = new Vector2(900f, 40f);
-        rect.anchoredPosition = new Vector2(0f, 46f);
+        rect.anchoredPosition = new Vector2(0f, bottomOffset);
         return text;
+    }
+
+    private void HandleImpactFeedback(string message)
+    {
+        if (_hitText == null)
+        {
+            return;
+        }
+
+        _hitText.text = message;
+        _hitTextTimer = 2.2f;
+    }
+
+    private void UpdateHitText()
+    {
+        if (_hitText == null)
+        {
+            return;
+        }
+
+        _hitTextTimer = Mathf.Max(0f, _hitTextTimer - Time.deltaTime);
+        float alpha = Mathf.Clamp01(_hitTextTimer / 0.35f);
+        Color color = _hitText.color;
+        color.a = 0.9f * alpha;
+        _hitText.color = color;
     }
 
     private static void Stretch(RectTransform rect)

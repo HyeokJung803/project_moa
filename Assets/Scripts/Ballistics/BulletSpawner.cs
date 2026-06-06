@@ -29,10 +29,14 @@ public class BulletSpawner : MonoBehaviour
     [SerializeField] private float muzzleFlashDuration = 0.045f;
     [SerializeField] private float muzzleFlashIntensity = 5f;
     [SerializeField] private Color muzzleFlashColor = new Color(1f, 0.68f, 0.28f, 1f);
+    [SerializeField] private Color targetHitMarkColor = new Color(0.02f, 0.018f, 0.015f, 1f);
+    [SerializeField] private Color bullseyeHitMarkColor = new Color(0.85f, 0.04f, 0.025f, 1f);
+    [SerializeField] private float impactMarkLifetime = 90f;
 
     public float ElevationMOA => elevationMOA;
     public float WindageMOA => windageMOA;
     public event System.Action OnFired;
+    public event System.Action<string> OnImpactFeedback;
 
     private const float MOA_TO_RAD = 0.000290888f;
 
@@ -118,10 +122,29 @@ public class BulletSpawner : MonoBehaviour
         PlayFireFeedback();
     }
 
-    private void HandleBulletImpact(Vector3 impactPoint, Vector3 normal, float timeOfFlight)
+    private void HandleBulletImpact(Vector3 impactPoint, Vector3 normal, float timeOfFlight, Collider hitCollider)
     {
         float distanceToImpact = Vector3.Distance(muzzleTransform.position, impactPoint);
         float soundDelay = distanceToImpact / 343f;
+        RangeTarget target = hitCollider != null ? hitCollider.GetComponentInParent<RangeTarget>() : null;
+
+        if (enableProceduralFeedback)
+        {
+            SpawnImpactParticles(impactPoint, normal, target != null);
+            SpawnImpactMark(impactPoint, normal, target);
+        }
+
+        if (target != null)
+        {
+            int score = target.GetScore(impactPoint);
+            string feedback = $"{target.DistanceMeters:0}m HIT  SCORE {score}  TOF {timeOfFlight:F2}s";
+            OnImpactFeedback?.Invoke(feedback);
+            Debug.Log($"[RangeTarget] {feedback}");
+        }
+        else
+        {
+            OnImpactFeedback?.Invoke($"MISS  {distanceToImpact:0}m  TOF {timeOfFlight:F2}s");
+        }
 
         Debug.Log($"[BulletSpawner] TOF: {timeOfFlight:F3}s | Distance: {distanceToImpact:F1}m "
                 + $"| Impact sound delay: {soundDelay:F3}s");
@@ -130,6 +153,81 @@ public class BulletSpawner : MonoBehaviour
         {
             StartCoroutine(PlayImpactSoundDelayed(soundDelay));
         }
+    }
+
+    private void SpawnImpactParticles(Vector3 impactPoint, Vector3 normal, bool targetHit)
+    {
+        GameObject particlesObject = new GameObject(targetHit ? "Target Hit Chips" : "Dust Impact Puff");
+        particlesObject.transform.position = impactPoint + normal * 0.025f;
+        particlesObject.transform.rotation = Quaternion.LookRotation(normal);
+
+        ParticleSystem particles = particlesObject.AddComponent<ParticleSystem>();
+        ParticleSystem.MainModule main = particles.main;
+        main.loop = false;
+        main.playOnAwake = false;
+        main.duration = 0.35f;
+        main.startLifetime = targetHit ? 0.32f : 0.55f;
+        main.startSpeed = targetHit ? 1.7f : 2.2f;
+        main.startSize = targetHit ? 0.035f : 0.12f;
+        main.startColor = targetHit
+            ? new Color(0.18f, 0.16f, 0.13f, 0.9f)
+            : new Color(0.5f, 0.43f, 0.35f, 0.75f);
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+
+        ParticleSystem.EmissionModule emission = particles.emission;
+        emission.enabled = false;
+
+        ParticleSystem.ShapeModule shape = particles.shape;
+        shape.enabled = true;
+        shape.shapeType = ParticleSystemShapeType.Cone;
+        shape.angle = targetHit ? 34f : 26f;
+        shape.radius = targetHit ? 0.02f : 0.08f;
+
+        particles.Emit(targetHit ? 16 : 26);
+        Destroy(particlesObject, 2f);
+    }
+
+    private void SpawnImpactMark(Vector3 impactPoint, Vector3 normal, RangeTarget target)
+    {
+        if (target == null)
+        {
+            return;
+        }
+
+        int score = target.GetScore(impactPoint);
+        GameObject mark = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        mark.name = $"Bullet Hole Score {score}";
+        mark.transform.position = impactPoint + normal * 0.006f;
+        mark.transform.rotation = Quaternion.LookRotation(normal) * Quaternion.Euler(90f, 0f, 0f);
+        mark.transform.localScale = new Vector3(score >= 10 ? 0.045f : 0.035f, 0.004f, score >= 10 ? 0.045f : 0.035f);
+
+        Collider markCollider = mark.GetComponent<Collider>();
+        if (markCollider != null)
+        {
+            markCollider.enabled = false;
+        }
+
+        Renderer renderer = mark.GetComponent<Renderer>();
+        if (renderer != null)
+        {
+            renderer.sharedMaterial = CreateImpactMarkMaterial(score >= 10 ? bullseyeHitMarkColor : targetHitMarkColor);
+        }
+
+        Destroy(mark, impactMarkLifetime);
+    }
+
+    private static Material CreateImpactMarkMaterial(Color color)
+    {
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+        if (shader == null)
+        {
+            shader = Shader.Find("Standard");
+        }
+
+        Material material = new Material(shader);
+        material.name = "Runtime Bullet Hole";
+        material.color = color;
+        return material;
     }
 
     private void SetupProceduralFeedback()

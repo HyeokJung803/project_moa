@@ -159,7 +159,8 @@ public class MountainRangeBuilder : MonoBehaviour
     private void BuildTarget(float distance, float x)
     {
         CreateBox($"{distance:0}m Target Stand", new Vector3(x, 1.1f, distance), new Vector3(0.18f, 2.1f, 0.18f), _woodMaterial);
-        CreateBox($"{distance:0}m Target Board", new Vector3(x, 1.55f, distance + 0.04f), new Vector3(1.55f, 1.55f, 0.08f), _whiteMaterial);
+        GameObject board = CreateBox($"{distance:0}m Target Board", new Vector3(x, 1.55f, distance + 0.04f), new Vector3(1.55f, 1.55f, 0.08f), _whiteMaterial);
+        board.AddComponent<RangeTarget>().Configure(distance, 0.62f);
         CreateRing($"{distance:0}m Outer Ring", new Vector3(x, 1.55f, distance - 0.015f), 0.62f, _blackMaterial);
         CreateRing($"{distance:0}m Middle Ring", new Vector3(x, 1.55f, distance - 0.025f), 0.38f, _blackMaterial);
         CreateRing($"{distance:0}m Bull", new Vector3(x, 1.55f, distance - 0.035f), 0.16f, _redMaterial);
