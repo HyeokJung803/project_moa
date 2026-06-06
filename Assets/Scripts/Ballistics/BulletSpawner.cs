@@ -185,6 +185,14 @@ public class BulletSpawner : MonoBehaviour
         shape.angle = targetHit ? 34f : 26f;
         shape.radius = targetHit ? 0.02f : 0.08f;
 
+        ParticleSystemRenderer particleRenderer = particles.GetComponent<ParticleSystemRenderer>();
+        if (particleRenderer != null)
+        {
+            particleRenderer.sharedMaterial = CreateRuntimeMaterial(
+                targetHit ? "Target Chip Particle" : "Dust Impact Particle",
+                targetHit ? new Color(0.18f, 0.16f, 0.13f, 0.9f) : new Color(0.5f, 0.43f, 0.35f, 0.75f));
+        }
+
         particles.Emit(targetHit ? 16 : 26);
         Destroy(particlesObject, 2f);
     }
@@ -212,23 +220,36 @@ public class BulletSpawner : MonoBehaviour
         Renderer renderer = mark.GetComponent<Renderer>();
         if (renderer != null)
         {
-            renderer.sharedMaterial = CreateImpactMarkMaterial(score >= 10 ? bullseyeHitMarkColor : targetHitMarkColor);
+            renderer.sharedMaterial = CreateRuntimeMaterial(
+                "Runtime Bullet Hole",
+                score >= 10 ? bullseyeHitMarkColor : targetHitMarkColor);
         }
 
         Destroy(mark, impactMarkLifetime);
     }
 
-    private static Material CreateImpactMarkMaterial(Color color)
+    private static Material CreateRuntimeMaterial(string materialName, Color color)
     {
-        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+        Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
         if (shader == null)
         {
-            shader = Shader.Find("Standard");
+            shader = Shader.Find("Universal Render Pipeline/Lit");
+        }
+
+        if (shader == null)
+        {
+            shader = Shader.Find("Sprites/Default");
         }
 
         Material material = new Material(shader);
-        material.name = "Runtime Bullet Hole";
+        material.name = materialName;
         material.color = color;
+
+        if (material.HasProperty("_BaseColor"))
+        {
+            material.SetColor("_BaseColor", color);
+        }
+
         return material;
     }
 
@@ -263,6 +284,12 @@ public class BulletSpawner : MonoBehaviour
             shape.shapeType = ParticleSystemShapeType.Cone;
             shape.angle = 12f;
             shape.radius = 0.025f;
+
+            ParticleSystemRenderer muzzleRenderer = _muzzleParticles.GetComponent<ParticleSystemRenderer>();
+            if (muzzleRenderer != null)
+            {
+                muzzleRenderer.sharedMaterial = CreateRuntimeMaterial("Muzzle Flash Particle", muzzleFlashColor);
+            }
         }
 
         _audioSource = GetComponent<AudioSource>();
