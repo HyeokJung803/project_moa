@@ -183,7 +183,7 @@ public class MountainRangeBuilder : MonoBehaviour
         TextMesh text = new GameObject($"{distance:0}m Distance Text").AddComponent<TextMesh>();
         text.transform.SetParent(sign.transform, false);
         text.transform.localPosition = new Vector3(0f, 0f, -0.055f);
-        text.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+        text.transform.localRotation = Quaternion.identity;
         text.transform.localScale = Vector3.one * 0.18f;
         text.text = $"{distance:0}m";
         text.anchor = TextAnchor.MiddleCenter;
