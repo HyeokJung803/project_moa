@@ -16,7 +16,9 @@ public class ScopeOverlayController : MonoBehaviour
     [SerializeField] private float edgeSoftness = 0.035f;
     [SerializeField] private Color outsideColor = new Color(0f, 0f, 0f, 0.92f);
     [SerializeField] private Color reticleColor = new Color(0f, 0f, 0f, 0.95f);
-    [SerializeField] private Color glassTint = new Color(0.1f, 0.16f, 0.14f, 0.09f);
+    [SerializeField] private Color glassTint = new Color(0.08f, 0.13f, 0.12f, 0.08f);
+    [SerializeField] private Color scopeRingColor = new Color(0f, 0f, 0f, 0.42f);
+    [SerializeField] private Color glassNoiseColor = new Color(0.75f, 0.86f, 0.82f, 0.035f);
 
     private CanvasGroup _canvasGroup;
     private RectTransform _reticleRoot;
@@ -110,6 +112,13 @@ public class ScopeOverlayController : MonoBehaviour
         Image tint = CreateImage("Scope Glass Tint", canvasRect, glassTint);
         Stretch(tint.rectTransform);
 
+        RawImage glassNoise = CreateRawImage("Scope Fine Glass Noise", canvasRect, CreateGlassTexture());
+        glassNoise.color = glassNoiseColor;
+        Stretch(glassNoise.rectTransform);
+
+        RawImage scopeRing = CreateRawImage("Scope Inner Edge Shadow", canvasRect, CreateRingTexture());
+        Stretch(scopeRing.rectTransform);
+
         _reticleRoot = CreateRect("Reticle", canvasRect);
         _reticleRoot.anchorMin = new Vector2(0.5f, 0.5f);
         _reticleRoot.anchorMax = new Vector2(0.5f, 0.5f);
@@ -154,6 +163,59 @@ public class ScopeOverlayController : MonoBehaviour
                 float distance = Vector2.Distance(new Vector2(x, y), center);
                 float alpha = Mathf.InverseLerp(radius - softness, radius + softness, distance);
                 texture.SetPixel(x, y, new Color(outsideColor.r, outsideColor.g, outsideColor.b, outsideColor.a * alpha));
+            }
+        }
+
+        texture.Apply();
+        return texture;
+    }
+
+    private Texture2D CreateRingTexture()
+    {
+        int size = Mathf.Max(64, maskTextureSize);
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.wrapMode = TextureWrapMode.Clamp;
+
+        Vector2 center = new Vector2((size - 1) * 0.5f, (size - 1) * 0.5f);
+        float radius = size * visibleRadius;
+        float innerFade = size * 0.045f;
+        float outerFade = size * 0.02f;
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float distance = Vector2.Distance(new Vector2(x, y), center);
+                float outer = 1f - Mathf.InverseLerp(radius, radius + outerFade, distance);
+                float inner = Mathf.InverseLerp(radius - innerFade, radius, distance);
+                float alpha = Mathf.Clamp01(inner * outer) * scopeRingColor.a;
+                texture.SetPixel(x, y, new Color(scopeRingColor.r, scopeRingColor.g, scopeRingColor.b, alpha));
+            }
+        }
+
+        texture.Apply();
+        return texture;
+    }
+
+    private Texture2D CreateGlassTexture()
+    {
+        int size = Mathf.Max(64, maskTextureSize);
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.wrapMode = TextureWrapMode.Clamp;
+
+        Vector2 center = new Vector2((size - 1) * 0.5f, (size - 1) * 0.5f);
+        float radius = size * visibleRadius;
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float distance = Vector2.Distance(new Vector2(x, y), center);
+                float inside = 1f - Mathf.InverseLerp(radius - 2f, radius + 2f, distance);
+                float noise = Mathf.PerlinNoise(x * 0.075f + 13.2f, y * 0.075f + 91.7f);
+                float scratch = Mathf.PerlinNoise(x * 0.012f + 55.3f, y * 0.18f + 7.1f);
+                float alpha = Mathf.Clamp01((noise * 0.45f + scratch * 0.55f - 0.54f) * 1.8f) * inside;
+                texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
             }
         }
 
