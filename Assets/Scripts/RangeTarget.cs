@@ -39,4 +39,10 @@ public class RangeTarget : MonoBehaviour
 
         return 3;
     }
+
+    public Vector2 GetLocalImpactOffset(Vector3 worldPoint)
+    {
+        Vector3 localPoint = transform.InverseTransformPoint(worldPoint);
+        return new Vector2(localPoint.x, localPoint.y);
+    }
 }

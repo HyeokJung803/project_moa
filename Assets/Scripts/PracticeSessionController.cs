@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
@@ -28,6 +29,8 @@ public class PracticeSessionController : MonoBehaviour
     private int _currentTaskIndex;
     private int _bestScore;
     private float _bestAccuracy;
+    private readonly List<ShotGroupSample> _groupSamples = new List<ShotGroupSample>();
+    private ShotGroupStats _groupStats;
     private float _sessionTimer;
     private bool _sessionEnded;
     private string _lastShot = "NO SHOTS FIRED";
@@ -100,6 +103,8 @@ public class PracticeSessionController : MonoBehaviour
         _hits = 0;
         _totalScore = 0;
         _currentTaskIndex = 0;
+        _groupSamples.Clear();
+        _groupStats = ShotGroupStats.Empty;
         _sessionTimer = parTimeSeconds;
         _sessionEnded = false;
         _lastShot = "NO SHOTS FIRED";
@@ -143,6 +148,8 @@ public class PracticeSessionController : MonoBehaviour
         if (result.HitTarget)
         {
             _hits++;
+            _groupSamples.Add(new ShotGroupSample(result.TargetOffsetMeters, result.TargetDistanceMeters));
+            _groupStats = CalculateGroupStats();
             bonus = taskHit ? 2 : 0;
             _totalScore += result.Score + bonus;
             _lastShot = $"{result.TargetDistanceMeters:0}m HIT   SCORE {result.Score}";
@@ -197,7 +204,8 @@ public class PracticeSessionController : MonoBehaviour
             accuracy,
             _bestScore,
             _bestAccuracy,
-            newBest));
+            newBest,
+            _groupStats));
     }
 
     private float CurrentTaskDistance
@@ -270,7 +278,8 @@ public class PracticeSessionController : MonoBehaviour
         string weapon = bulletSpawner != null ? bulletSpawner.WeaponState : "READY";
         _sessionText.text = $"{status}   SCORE {_totalScore:000}   AMMO {remaining}/{shotsPerSession}   {weapon}";
         _objectiveText.text = $"TASK: HIT {CurrentTaskDistance:0}m TARGET   TIME {FormatTime(_sessionTimer)}   ACC {accuracy:0}%";
-        _lastShotText.text = $"{_lastShot}   PB {_bestScore:000}/{_bestAccuracy:0}%";
+        string group = _groupStats.SampleCount >= 2 ? $"   GRP {_groupStats.SpreadMeters * 100f:0.0}cm" : string.Empty;
+        _lastShotText.text = $"{_lastShot}{group}   PB {_bestScore:000}/{_bestAccuracy:0}%";
         if (bulletSpawner != null)
         {
             float wind = bulletSpawner.WindVelocity.x;
@@ -282,6 +291,44 @@ public class PracticeSessionController : MonoBehaviour
         _hintText.text = _sessionEnded
             ? "PRESS R TO START A NEW STRING"
             : "SPACE FIRE   RMB SCOPE   SHIFT HOLD BREATH   [ ] WIND   - = TEMP   , . ALT";
+    }
+
+    private ShotGroupStats CalculateGroupStats()
+    {
+        if (_groupSamples.Count == 0)
+        {
+            return ShotGroupStats.Empty;
+        }
+
+        Vector2 averageOffset = Vector2.zero;
+        float averageDistance = 0f;
+        for (int i = 0; i < _groupSamples.Count; i++)
+        {
+            averageOffset += _groupSamples[i].OffsetMeters;
+            averageDistance += _groupSamples[i].DistanceMeters;
+        }
+
+        averageOffset /= _groupSamples.Count;
+        averageDistance /= _groupSamples.Count;
+
+        float maxSpread = 0f;
+        for (int i = 0; i < _groupSamples.Count; i++)
+        {
+            for (int j = i + 1; j < _groupSamples.Count; j++)
+            {
+                float spread = Vector2.Distance(_groupSamples[i].OffsetMeters, _groupSamples[j].OffsetMeters);
+                maxSpread = Mathf.Max(maxSpread, spread);
+            }
+        }
+
+        if (_groupSamples.Count == 1)
+        {
+            maxSpread = 0f;
+        }
+
+        float moaPerMeter = averageDistance <= 0.01f ? 0f : 3437.75f / averageDistance;
+        Vector2 correctionMoa = new Vector2(-averageOffset.x * moaPerMeter, -averageOffset.y * moaPerMeter);
+        return new ShotGroupStats(_groupSamples.Count, averageOffset, maxSpread, averageDistance, correctionMoa);
     }
 
     private void LoadBestSession()
@@ -384,9 +431,42 @@ public class PracticeSessionController : MonoBehaviour
     }
 }
 
+public readonly struct ShotGroupSample
+{
+    public ShotGroupSample(Vector2 offsetMeters, float distanceMeters)
+    {
+        OffsetMeters = offsetMeters;
+        DistanceMeters = distanceMeters;
+    }
+
+    public Vector2 OffsetMeters { get; }
+    public float DistanceMeters { get; }
+}
+
+public readonly struct ShotGroupStats
+{
+    public ShotGroupStats(int sampleCount, Vector2 averageOffsetMeters, float spreadMeters, float averageDistanceMeters, Vector2 correctionMoa)
+    {
+        SampleCount = sampleCount;
+        AverageOffsetMeters = averageOffsetMeters;
+        SpreadMeters = spreadMeters;
+        AverageDistanceMeters = averageDistanceMeters;
+        CorrectionMoa = correctionMoa;
+    }
+
+    public int SampleCount { get; }
+    public Vector2 AverageOffsetMeters { get; }
+    public float SpreadMeters { get; }
+    public float AverageDistanceMeters { get; }
+    public Vector2 CorrectionMoa { get; }
+    public bool HasSamples => SampleCount > 0;
+
+    public static ShotGroupStats Empty => new ShotGroupStats(0, Vector2.zero, 0f, 0f, Vector2.zero);
+}
+
 public readonly struct PracticeSessionResult
 {
-    public PracticeSessionResult(int score, int shotsFired, int hits, float accuracy, int bestScore, float bestAccuracy, bool newBest)
+    public PracticeSessionResult(int score, int shotsFired, int hits, float accuracy, int bestScore, float bestAccuracy, bool newBest, ShotGroupStats groupStats)
     {
         Score = score;
         ShotsFired = shotsFired;
@@ -395,6 +475,7 @@ public readonly struct PracticeSessionResult
         BestScore = bestScore;
         BestAccuracy = bestAccuracy;
         NewBest = newBest;
+        GroupStats = groupStats;
     }
 
     public int Score { get; }
@@ -404,6 +485,7 @@ public readonly struct PracticeSessionResult
     public int BestScore { get; }
     public float BestAccuracy { get; }
     public bool NewBest { get; }
+    public ShotGroupStats GroupStats { get; }
 
     public string Grade
     {

@@ -187,9 +187,10 @@ public class BulletSpawner : MonoBehaviour
         if (target != null)
         {
             int score = target.GetScore(impactPoint);
+            Vector2 targetOffset = target.GetLocalImpactOffset(impactPoint);
             string feedback = $"{target.DistanceMeters:0}m HIT  SCORE {score}  TOF {timeOfFlight:F2}s";
             OnImpactFeedback?.Invoke(feedback);
-            OnShotResolved?.Invoke(ShotResult.Hit(target.DistanceMeters, distanceToImpact, score, timeOfFlight, impactPoint));
+            OnShotResolved?.Invoke(ShotResult.Hit(target.DistanceMeters, distanceToImpact, score, timeOfFlight, impactPoint, targetOffset));
             Debug.Log($"[RangeTarget] {feedback}");
         }
         else
@@ -465,7 +466,7 @@ public class BulletSpawner : MonoBehaviour
 
 public readonly struct ShotResult
 {
-    public ShotResult(bool hitTarget, float targetDistanceMeters, float impactDistanceMeters, int score, float timeOfFlight, Vector3 impactPoint)
+    public ShotResult(bool hitTarget, float targetDistanceMeters, float impactDistanceMeters, int score, float timeOfFlight, Vector3 impactPoint, Vector2 targetOffsetMeters)
     {
         HitTarget = hitTarget;
         TargetDistanceMeters = targetDistanceMeters;
@@ -473,6 +474,7 @@ public readonly struct ShotResult
         Score = score;
         TimeOfFlight = timeOfFlight;
         ImpactPoint = impactPoint;
+        TargetOffsetMeters = targetOffsetMeters;
     }
 
     public bool HitTarget { get; }
@@ -481,14 +483,15 @@ public readonly struct ShotResult
     public int Score { get; }
     public float TimeOfFlight { get; }
     public Vector3 ImpactPoint { get; }
+    public Vector2 TargetOffsetMeters { get; }
 
-    public static ShotResult Hit(float targetDistanceMeters, float impactDistanceMeters, int score, float timeOfFlight, Vector3 impactPoint)
+    public static ShotResult Hit(float targetDistanceMeters, float impactDistanceMeters, int score, float timeOfFlight, Vector3 impactPoint, Vector2 targetOffsetMeters)
     {
-        return new ShotResult(true, targetDistanceMeters, impactDistanceMeters, score, timeOfFlight, impactPoint);
+        return new ShotResult(true, targetDistanceMeters, impactDistanceMeters, score, timeOfFlight, impactPoint, targetOffsetMeters);
     }
 
     public static ShotResult Miss(float impactDistanceMeters, float timeOfFlight, Vector3 impactPoint)
     {
-        return new ShotResult(false, 0f, impactDistanceMeters, 0, timeOfFlight, impactPoint);
+        return new ShotResult(false, 0f, impactDistanceMeters, 0, timeOfFlight, impactPoint, Vector2.zero);
     }
 }

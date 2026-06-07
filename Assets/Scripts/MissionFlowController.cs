@@ -137,10 +137,14 @@ public class MissionFlowController : MonoBehaviour
     private void HandleSessionEnded(PracticeSessionResult result)
     {
         _titleText.text = result.NewBest ? "NEW PERSONAL BEST" : "COURSE COMPLETE";
+        string groupLine = result.GroupStats.HasSamples
+            ? $"GROUP {result.GroupStats.SpreadMeters * 100f:0.0}cm   CORR E {result.GroupStats.CorrectionMoa.y:+0.0;-0.0;0.0} / W {result.GroupStats.CorrectionMoa.x:+0.0;-0.0;0.0} MOA"
+            : "GROUP NO VALID TARGET HITS";
         _bodyText.text =
             $"GRADE {result.Grade}\n" +
             $"SCORE {result.Score:000}   HITS {result.Hits}/{result.ShotsFired}   ACC {result.Accuracy:0}%\n" +
-            $"BEST {result.BestScore:000}   BEST ACC {result.BestAccuracy:0}%";
+            $"BEST {result.BestScore:000}   BEST ACC {result.BestAccuracy:0}%\n" +
+            groupLine;
         _footerText.text = "ENTER OR R NEW STRING   ESC CLOSE";
         _restartAllowed = true;
         SetMenuOpen(true);
