@@ -9,6 +9,7 @@ public class MissionFlowController : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private BulletSpawner bulletSpawner;
+    [SerializeField] private PracticeSessionController practiceSession;
 
     private CanvasGroup _canvasGroup;
     private Text _titleText;
@@ -16,6 +17,7 @@ public class MissionFlowController : MonoBehaviour
     private Text _footerText;
     private bool _isMenuOpen;
     private bool _hasStarted;
+    private bool _restartAllowed;
 
     private void Awake()
     {
@@ -24,8 +26,29 @@ public class MissionFlowController : MonoBehaviour
             bulletSpawner = FindAnyObjectByType<BulletSpawner>();
         }
 
+        if (practiceSession == null)
+        {
+            practiceSession = FindAnyObjectByType<PracticeSessionController>();
+        }
+
         BuildOverlay();
         ShowBriefing();
+    }
+
+    private void OnEnable()
+    {
+        if (practiceSession != null)
+        {
+            practiceSession.OnSessionEnded += HandleSessionEnded;
+        }
+    }
+
+    private void OnDisable()
+    {
+        if (practiceSession != null)
+        {
+            practiceSession.OnSessionEnded -= HandleSessionEnded;
+        }
     }
 
     private void Update()
@@ -39,6 +62,12 @@ public class MissionFlowController : MonoBehaviour
         if (!_hasStarted && (keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame))
         {
             StartMission();
+            return;
+        }
+
+        if (_isMenuOpen && _hasStarted && _restartAllowed && IsRestartPressed(keyboard))
+        {
+            RestartMission();
             return;
         }
 
@@ -64,6 +93,7 @@ public class MissionFlowController : MonoBehaviour
             "10 ROUND STRING  |  STATIC AND MOVING TARGETS\n" +
             "READ WIND, HOLD BREATH, DIAL TURRETS, CONFIRM IMPACTS";
         _footerText.text = "ENTER START   ESC PAUSE";
+        _restartAllowed = false;
         SetMenuOpen(true);
     }
 
@@ -74,18 +104,46 @@ public class MissionFlowController : MonoBehaviour
             "RANGE IS COLD\n" +
             "CHECK YOUR LAST IMPACT, RESET YOUR PLAN, THEN CONTINUE";
         _footerText.text = "ESC RESUME";
+        _restartAllowed = false;
         SetMenuOpen(true);
     }
 
     private void StartMission()
     {
         _hasStarted = true;
+        if (practiceSession != null)
+        {
+            practiceSession.StartSession();
+        }
+
         SetMenuOpen(false);
     }
 
     private void ResumeMission()
     {
         SetMenuOpen(false);
+    }
+
+    private void RestartMission()
+    {
+        if (practiceSession != null)
+        {
+            practiceSession.StartSession();
+        }
+
+        SetMenuOpen(false);
+    }
+
+    private void HandleSessionEnded(PracticeSessionResult result)
+    {
+        _titleText.text = result.NewBest ? "NEW PERSONAL BEST" : "COURSE COMPLETE";
+        _bodyText.text =
+            $"GRADE {result.Grade}\n" +
+            $"SCORE {result.Score:000}   HITS {result.Hits}/{result.ShotsFired}   ACC {result.Accuracy:0}%\n" +
+            $"BEST {result.BestScore:000}   BEST ACC {result.BestAccuracy:0}%";
+        _footerText.text = "ENTER OR R NEW STRING   ESC CLOSE";
+        _restartAllowed = true;
+        SetMenuOpen(true);
     }
 
     private void SetMenuOpen(bool open)
@@ -107,6 +165,13 @@ public class MissionFlowController : MonoBehaviour
 
         Cursor.lockState = open ? CursorLockMode.None : CursorLockMode.Locked;
         Cursor.visible = open;
+    }
+
+    private static bool IsRestartPressed(Keyboard keyboard)
+    {
+        return keyboard.rKey.wasPressedThisFrame
+            || keyboard.enterKey.wasPressedThisFrame
+            || keyboard.numpadEnterKey.wasPressedThisFrame;
     }
 
     private void BuildOverlay()

@@ -35,6 +35,8 @@ public class PracticeSessionController : MonoBehaviour
     private const string BestScoreKey = "PracticeSession.BestScore";
     private const string BestAccuracyKey = "PracticeSession.BestAccuracy";
 
+    public event System.Action<PracticeSessionResult> OnSessionEnded;
+
     private void Awake()
     {
         if (bulletSpawner == null)
@@ -75,6 +77,7 @@ public class PracticeSessionController : MonoBehaviour
         if (keyboard != null && keyboard.rKey.wasPressedThisFrame)
         {
             StartSession();
+            return;
         }
 
         HandleEnvironmentInput(keyboard);
@@ -91,7 +94,7 @@ public class PracticeSessionController : MonoBehaviour
         RefreshHud();
     }
 
-    private void StartSession()
+    public void StartSession()
     {
         _shotsFired = 0;
         _hits = 0;
@@ -105,6 +108,8 @@ public class PracticeSessionController : MonoBehaviour
         {
             bulletSpawner.FireLocked = false;
         }
+
+        RefreshHud();
     }
 
     private void HandleFired()
@@ -172,13 +177,27 @@ public class PracticeSessionController : MonoBehaviour
 
     private void EndSession()
     {
+        if (_sessionEnded)
+        {
+            return;
+        }
+
         _sessionEnded = true;
         if (bulletSpawner != null)
         {
             bulletSpawner.FireLocked = true;
         }
 
-        SaveBestSession();
+        bool newBest = SaveBestSession();
+        float accuracy = _shotsFired > 0 ? _hits / (float)_shotsFired * 100f : 0f;
+        OnSessionEnded?.Invoke(new PracticeSessionResult(
+            _totalScore,
+            _shotsFired,
+            _hits,
+            accuracy,
+            _bestScore,
+            _bestAccuracy,
+            newBest));
     }
 
     private float CurrentTaskDistance
@@ -271,7 +290,7 @@ public class PracticeSessionController : MonoBehaviour
         _bestAccuracy = PlayerPrefs.GetFloat(BestAccuracyKey, 0f);
     }
 
-    private void SaveBestSession()
+    private bool SaveBestSession()
     {
         float accuracy = _shotsFired > 0 ? _hits / (float)_shotsFired * 100f : 0f;
         bool newBest = _totalScore > _bestScore
@@ -279,7 +298,7 @@ public class PracticeSessionController : MonoBehaviour
 
         if (!newBest)
         {
-            return;
+            return false;
         }
 
         _bestScore = _totalScore;
@@ -287,6 +306,7 @@ public class PracticeSessionController : MonoBehaviour
         PlayerPrefs.SetInt(BestScoreKey, _bestScore);
         PlayerPrefs.SetFloat(BestAccuracyKey, _bestAccuracy);
         PlayerPrefs.Save();
+        return true;
     }
 
     private void HandleEnvironmentInput(Keyboard keyboard)
@@ -361,5 +381,50 @@ public class PracticeSessionController : MonoBehaviour
         rect.anchoredPosition = anchoredPosition;
         rect.sizeDelta = new Vector2(430f, 32f);
         return text;
+    }
+}
+
+public readonly struct PracticeSessionResult
+{
+    public PracticeSessionResult(int score, int shotsFired, int hits, float accuracy, int bestScore, float bestAccuracy, bool newBest)
+    {
+        Score = score;
+        ShotsFired = shotsFired;
+        Hits = hits;
+        Accuracy = accuracy;
+        BestScore = bestScore;
+        BestAccuracy = bestAccuracy;
+        NewBest = newBest;
+    }
+
+    public int Score { get; }
+    public int ShotsFired { get; }
+    public int Hits { get; }
+    public float Accuracy { get; }
+    public int BestScore { get; }
+    public float BestAccuracy { get; }
+    public bool NewBest { get; }
+
+    public string Grade
+    {
+        get
+        {
+            if (Score >= 96 && Accuracy >= 90f)
+            {
+                return "EXPERT";
+            }
+
+            if (Score >= 78 && Accuracy >= 70f)
+            {
+                return "MARKSMAN";
+            }
+
+            if (Score >= 55)
+            {
+                return "QUALIFIED";
+            }
+
+            return "RETRAIN";
+        }
     }
 }

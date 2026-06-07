@@ -42,8 +42,8 @@ public class MountainRangeBuilder : MonoBehaviour
         BuildBackstop();
         BuildWindFlags();
         TuneLighting();
-        EnsureMissionFlow();
         EnsurePracticeSession();
+        EnsureMissionFlow();
         EnsureSpotterCamera();
     }
 
