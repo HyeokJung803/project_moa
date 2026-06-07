@@ -33,6 +33,12 @@ public class AimController : MonoBehaviour
     [SerializeField] private float maxRecoilPitch = 6f;
     [SerializeField] private float maxRecoilYaw = 1.5f;
 
+    [Header("Bolt Action Visuals")]
+    [SerializeField] private float boltCameraPitch = 0.42f;
+    [SerializeField] private float boltCameraYaw = 0.18f;
+    [SerializeField] private Vector3 boltWeaponOffset = new Vector3(0.025f, -0.035f, -0.075f);
+    [SerializeField] private Vector3 boltWeaponEuler = new Vector3(-1.5f, 0.7f, -1.1f);
+
     [Header("Sway")]
     [SerializeField] private float aimSwayPosition = 0.004f;
     [SerializeField] private float hipSwayPosition = 0.012f;
@@ -61,6 +67,8 @@ public class AimController : MonoBehaviour
     private float _breath01 = 1f;
     private float _heartRateBpm = 72f;
     private float _heartKick;
+    private float _boltCycle01 = 1f;
+    private float _boltImpulse;
     private Renderer[] _weaponRenderers;
     private Vector3 _weaponBoundsCenterLocal;
     private bool _hasWeaponBoundsCenter;
@@ -91,6 +99,7 @@ public class AimController : MonoBehaviour
         if (bulletSpawner != null)
         {
             bulletSpawner.OnFired += HandleFired;
+            bulletSpawner.OnBoltCycle += HandleBoltCycle;
         }
     }
 
@@ -99,6 +108,7 @@ public class AimController : MonoBehaviour
         if (bulletSpawner != null)
         {
             bulletSpawner.OnFired -= HandleFired;
+            bulletSpawner.OnBoltCycle -= HandleBoltCycle;
         }
     }
 
@@ -122,8 +132,10 @@ public class AimController : MonoBehaviour
         ApplyWeaponPose();
         ApplyScopedWeaponVisibility();
         ApplyBreathingToCamera();
+        ApplyBoltActionToCamera();
         ApplyRecoilToCamera();
         RecoverRecoil();
+        RecoverBoltImpulse();
     }
 
     public void AddRecoil(float pitchKick, float yawKick)
@@ -138,6 +150,16 @@ public class AimController : MonoBehaviour
         float yawKick = Random.Range(-0.35f, 0.35f) * Mathf.Lerp(1f, 0.35f, _aimProgress);
         AddRecoil(pitchKick, yawKick);
         _heartKick = Mathf.Min(34f, _heartKick + shotHeartRateKick);
+        _boltImpulse = 1f;
+    }
+
+    private void HandleBoltCycle(float ready01)
+    {
+        _boltCycle01 = Mathf.Clamp01(ready01);
+        if (_boltCycle01 >= 0.99f)
+        {
+            _boltImpulse = 0f;
+        }
     }
 
     private void UpdateBreathing()
@@ -201,6 +223,9 @@ public class AimController : MonoBehaviour
 
         Quaternion targetRotation = Quaternion.Euler(Vector3.Lerp(hipLocalEuler, aimLocalEuler, t));
         Vector3 targetCenterPosition = Vector3.Lerp(hipLocalPosition, aimLocalPosition, t) + sway;
+        float boltAmount = GetBoltVisualAmount() * (1f - t * 0.55f);
+        targetCenterPosition += boltWeaponOffset * boltAmount;
+        targetRotation *= Quaternion.Euler(boltWeaponEuler * boltAmount);
         Vector3 targetRootPosition = GetRootPositionForBoundsCenter(targetCenterPosition, targetRotation);
 
         weaponVisual.localPosition = Vector3.Lerp(
@@ -324,11 +349,43 @@ public class AimController : MonoBehaviour
         transform.localRotation *= Quaternion.Euler(-_recoilPitch, _recoilYaw, 0f);
     }
 
+    private void ApplyBoltActionToCamera()
+    {
+        float amount = GetBoltVisualAmount();
+        if (amount <= 0.001f)
+        {
+            return;
+        }
+
+        float scopedDamping = Mathf.Lerp(1f, 0.45f, Smooth01(_aimProgress));
+        float lift = Mathf.Sin(amount * Mathf.PI) * scopedDamping;
+        float returnKick = Mathf.Sin(Mathf.Clamp01(amount * 1.65f) * Mathf.PI) * 0.35f;
+        transform.localRotation *= Quaternion.Euler(
+            boltCameraPitch * lift - boltCameraPitch * returnKick,
+            boltCameraYaw * Mathf.Sin(amount * Mathf.PI * 2f) * scopedDamping,
+            0f);
+    }
+
     private void RecoverRecoil()
     {
         float recovery = recoilRecoverySpeed * Time.deltaTime;
         _recoilPitch = Mathf.MoveTowards(_recoilPitch, 0f, recovery);
         _recoilYaw = Mathf.MoveTowards(_recoilYaw, 0f, recovery * 0.45f);
+    }
+
+    private void RecoverBoltImpulse()
+    {
+        if (_boltCycle01 >= 1f)
+        {
+            _boltImpulse = Mathf.MoveTowards(_boltImpulse, 0f, 7f * Time.deltaTime);
+        }
+    }
+
+    private float GetBoltVisualAmount()
+    {
+        float cycle = 1f - Mathf.Clamp01(_boltCycle01);
+        float cycleWave = Mathf.Sin(cycle * Mathf.PI);
+        return Mathf.Clamp01(Mathf.Max(_boltImpulse * 0.35f, cycleWave));
     }
 
     private static float Smooth01(float value)

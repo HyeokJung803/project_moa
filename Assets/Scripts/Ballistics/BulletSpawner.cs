@@ -45,6 +45,7 @@ public class BulletSpawner : MonoBehaviour
     public bool InputLocked { get; set; }
     public bool FireLocked { get; set; }
     public event System.Action OnFired;
+    public event System.Action<float> OnBoltCycle;
     public event System.Action<string> OnImpactFeedback;
     public event System.Action<ShotResult> OnShotResolved;
 
@@ -74,7 +75,7 @@ public class BulletSpawner : MonoBehaviour
 
     private void Update()
     {
-        _boltCycleTimer = Mathf.Max(0f, _boltCycleTimer - Time.deltaTime);
+        UpdateBoltCycle();
         UnityEngine.InputSystem.Keyboard keyboard = UnityEngine.InputSystem.Keyboard.current;
 
         if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame)
@@ -387,11 +388,23 @@ public class BulletSpawner : MonoBehaviour
     private void StartBoltCycle()
     {
         _boltCycleTimer = Mathf.Max(0.05f, boltCycleSeconds);
+        OnBoltCycle?.Invoke(0f);
 
         if (enableProceduralFeedback && _audioSource != null && _boltClip != null)
         {
             StartCoroutine(PlayBoltSoundDelayed(0.22f));
         }
+    }
+
+    private void UpdateBoltCycle()
+    {
+        if (_boltCycleTimer <= 0f)
+        {
+            return;
+        }
+
+        _boltCycleTimer = Mathf.Max(0f, _boltCycleTimer - Time.deltaTime);
+        OnBoltCycle?.Invoke(BoltReady01);
     }
 
     private IEnumerator FlashRoutine()
