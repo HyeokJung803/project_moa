@@ -38,13 +38,29 @@ public class AimController : MonoBehaviour
     [SerializeField] private float hipSwayPosition = 0.012f;
     [SerializeField] private float swaySpeed = 1.25f;
 
+    [Header("Breathing")]
+    [SerializeField] private float scopedBreathingDegrees = 0.16f;
+    [SerializeField] private float hipBreathingDegrees = 0.05f;
+    [SerializeField] private float holdBreathDrainPerSecond = 0.18f;
+    [SerializeField] private float breathRecoveryPerSecond = 0.12f;
+    [SerializeField] private float exhaustedSwayMultiplier = 2.2f;
+    [SerializeField] private float shotHeartRateKick = 11f;
+    [SerializeField] private float heartRateRecoverySpeed = 6f;
+
     public bool IsAiming => _isAiming;
     public float AimProgress => _aimProgress;
+    public bool IsHoldingBreath => _isHoldingBreath;
+    public float Breath01 => _breath01;
+    public float HeartRateBpm => _heartRateBpm;
 
     private bool _isAiming;
     private float _aimProgress;
     private float _recoilPitch;
     private float _recoilYaw;
+    private bool _isHoldingBreath;
+    private float _breath01 = 1f;
+    private float _heartRateBpm = 72f;
+    private float _heartKick;
     private Renderer[] _weaponRenderers;
     private Vector3 _weaponBoundsCenterLocal;
     private bool _hasWeaponBoundsCenter;
@@ -93,6 +109,7 @@ public class AimController : MonoBehaviour
 
         float target = _isAiming ? 1f : 0f;
         _aimProgress = Mathf.MoveTowards(_aimProgress, target, aimSpeed * Time.deltaTime);
+        UpdateBreathing();
 
         if (targetCamera != null)
         {
@@ -104,6 +121,7 @@ public class AimController : MonoBehaviour
     {
         ApplyWeaponPose();
         ApplyScopedWeaponVisibility();
+        ApplyBreathingToCamera();
         ApplyRecoilToCamera();
         RecoverRecoil();
     }
@@ -119,6 +137,47 @@ public class AimController : MonoBehaviour
         float pitchKick = Mathf.Lerp(hipRecoilPitch, aimRecoilPitch, _aimProgress);
         float yawKick = Random.Range(-0.35f, 0.35f) * Mathf.Lerp(1f, 0.35f, _aimProgress);
         AddRecoil(pitchKick, yawKick);
+        _heartKick = Mathf.Min(34f, _heartKick + shotHeartRateKick);
+    }
+
+    private void UpdateBreathing()
+    {
+        Keyboard keyboard = Keyboard.current;
+        bool wantsHold = keyboard != null
+            && (keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed);
+        _isHoldingBreath = _isAiming && wantsHold && _breath01 > 0.03f;
+
+        if (_isHoldingBreath)
+        {
+            _breath01 = Mathf.Max(0f, _breath01 - holdBreathDrainPerSecond * Time.deltaTime);
+        }
+        else
+        {
+            float recovery = breathRecoveryPerSecond * (_isAiming ? 0.65f : 1f);
+            _breath01 = Mathf.Min(1f, _breath01 + recovery * Time.deltaTime);
+        }
+
+        _heartKick = Mathf.MoveTowards(_heartKick, 0f, heartRateRecoverySpeed * Time.deltaTime);
+        float fatigueHeartRate = Mathf.Lerp(10f, 0f, _breath01);
+        float holdAdjustment = _isHoldingBreath ? -5f : 0f;
+        _heartRateBpm = 72f + _heartKick + fatigueHeartRate + holdAdjustment;
+    }
+
+    private void ApplyBreathingToCamera()
+    {
+        float scoped = Smooth01(_aimProgress);
+        float baseAmplitude = Mathf.Lerp(hipBreathingDegrees, scopedBreathingDegrees, scoped);
+        float holdMultiplier = _isHoldingBreath ? 0.28f : 1f;
+        float exhaustion = Mathf.Lerp(exhaustedSwayMultiplier, 1f, _breath01);
+        float amplitude = baseAmplitude * holdMultiplier * exhaustion;
+        float breathPhase = Time.time * Mathf.Lerp(0.75f, 1.25f, Mathf.InverseLerp(62f, 105f, _heartRateBpm));
+        float pulsePhase = Time.time * (_heartRateBpm / 60f) * Mathf.PI * 2f;
+
+        float pitch = Mathf.Sin(breathPhase * Mathf.PI * 2f) * amplitude;
+        float yaw = Mathf.Sin(breathPhase * Mathf.PI * 1.43f + 0.7f) * amplitude * 0.55f;
+        float pulse = Mathf.Sin(pulsePhase) * amplitude * 0.18f * scoped;
+
+        transform.localRotation *= Quaternion.Euler(pitch + pulse, yaw, pulse * 0.35f);
     }
 
     private void ApplyWeaponPose()

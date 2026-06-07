@@ -24,6 +24,7 @@ public class ScopeOverlayController : MonoBehaviour
     private RectTransform _reticleRoot;
     private Text _turretText;
     private Text _hitText;
+    private Text _breathText;
     private float _hitTextTimer;
 
     private void Awake()
@@ -81,6 +82,12 @@ public class ScopeOverlayController : MonoBehaviour
                 _turretText.text =
                     $"ELEV {bulletSpawner.ElevationMOA:+0.00;-0.00;0.00} MOA   WIND {bulletSpawner.WindageMOA:+0.00;-0.00;0.00} MOA";
             }
+        }
+
+        if (_breathText != null && aimController != null)
+        {
+            string hold = aimController.IsHoldingBreath ? "HOLD" : "BREATHE";
+            _breathText.text = $"{hold}   BREATH {aimController.Breath01 * 100f:0}%   HR {aimController.HeartRateBpm:0}";
         }
 
         UpdateHitText();
@@ -142,6 +149,7 @@ public class ScopeOverlayController : MonoBehaviour
         }
 
         _turretText = CreateText("Turret Readout", canvasRect, 46f, 20);
+        _breathText = CreateText("Breath Readout", canvasRect, 18f, 18);
         _hitText = CreateText("Impact Readout", canvasRect, 86f, 24);
         _hitText.color = new Color(1f, 0.92f, 0.72f, 0f);
     }

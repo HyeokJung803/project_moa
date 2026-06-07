@@ -241,7 +241,7 @@ public class PracticeSessionController : MonoBehaviour
         _lastShotText.text = _lastShot;
         _hintText.text = _sessionEnded
             ? "PRESS R TO START A NEW STRING"
-            : "SPACE FIRE   RMB SCOPE   MOUSE WHEEL TURRETS   R RESET";
+            : "SPACE FIRE   RMB SCOPE   SHIFT HOLD BREATH   MOUSE WHEEL TURRETS   R RESET";
     }
 
     private static string FormatTime(float seconds)
