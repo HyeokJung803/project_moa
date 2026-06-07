@@ -11,7 +11,7 @@ public class PracticeSessionController : MonoBehaviour
     [Header("Session")]
     [SerializeField] private int shotsPerSession = 10;
     [SerializeField] private float parTimeSeconds = 180f;
-    [SerializeField] private float[] taskDistances = { 100f, 200f, 300f, 500f };
+    [SerializeField] private float[] taskDistances = { 100f, 200f, 300f, 350f, 500f };
 
     [Header("References")]
     [SerializeField] private BulletSpawner bulletSpawner;
@@ -21,6 +21,7 @@ public class PracticeSessionController : MonoBehaviour
     private Text _objectiveText;
     private Text _lastShotText;
     private Text _environmentText;
+    private Text _shotLogText;
     private Text _hintText;
 
     private int _shotsFired;
@@ -30,6 +31,7 @@ public class PracticeSessionController : MonoBehaviour
     private int _bestScore;
     private float _bestAccuracy;
     private readonly List<ShotGroupSample> _groupSamples = new List<ShotGroupSample>();
+    private readonly List<string> _shotLog = new List<string>();
     private ShotGroupStats _groupStats;
     private float _sessionTimer;
     private bool _sessionEnded;
@@ -104,6 +106,7 @@ public class PracticeSessionController : MonoBehaviour
         _totalScore = 0;
         _currentTaskIndex = 0;
         _groupSamples.Clear();
+        _shotLog.Clear();
         _groupStats = ShotGroupStats.Empty;
         _sessionTimer = parTimeSeconds;
         _sessionEnded = false;
@@ -165,6 +168,7 @@ public class PracticeSessionController : MonoBehaviour
         }
 
         _lastShot += $"   TOF {result.TimeOfFlight:F2}s";
+        AddShotLogEntry(result, bonus, taskHit);
 
         if (_shotsFired >= shotsPerSession)
         {
@@ -257,6 +261,16 @@ public class PracticeSessionController : MonoBehaviour
         _environmentText = CreateText("Environment Text", backingRect, new Vector2(18f, -126f), 18, TextAnchor.UpperLeft);
         _hintText = CreateText("Hint Text", canvasRect, new Vector2(0f, 26f), 18, TextAnchor.MiddleCenter);
 
+        Image logBacking = CreateImage("Shot Log Backing", canvasRect, new Color(0f, 0f, 0f, 0.26f));
+        RectTransform logRect = logBacking.rectTransform;
+        logRect.anchorMin = new Vector2(1f, 1f);
+        logRect.anchorMax = new Vector2(1f, 1f);
+        logRect.pivot = new Vector2(1f, 1f);
+        logRect.anchoredPosition = new Vector2(-24f, -278f);
+        logRect.sizeDelta = new Vector2(380f, 168f);
+        _shotLogText = CreateText("Shot Log Text", logRect, new Vector2(16f, -14f), 18, TextAnchor.UpperLeft);
+        _shotLogText.rectTransform.sizeDelta = new Vector2(348f, 140f);
+
         RectTransform hintRect = _hintText.rectTransform;
         hintRect.anchorMin = new Vector2(0.5f, 0f);
         hintRect.anchorMax = new Vector2(0.5f, 0f);
@@ -291,6 +305,55 @@ public class PracticeSessionController : MonoBehaviour
         _hintText.text = _sessionEnded
             ? "PRESS R TO START A NEW STRING"
             : "SPACE FIRE   RMB SCOPE   SHIFT HOLD BREATH   [ ] WIND   - = TEMP   , . ALT";
+
+        if (_shotLogText != null)
+        {
+            _shotLogText.text = BuildShotLogText();
+        }
+    }
+
+    private void AddShotLogEntry(ShotResult result, int bonus, bool taskHit)
+    {
+        string entry;
+        if (result.HitTarget)
+        {
+            string task = taskHit ? " TASK" : string.Empty;
+            string bonusText = bonus > 0 ? $"+{bonus}" : string.Empty;
+            entry = $"{_shotsFired:00}  {result.TargetDistanceMeters:000}m  {result.Score}{bonusText}{task}  {FormatOffset(result.TargetOffsetMeters)}";
+        }
+        else
+        {
+            entry = $"{_shotsFired:00}  MISS  {result.ImpactDistanceMeters:000}m";
+        }
+
+        _shotLog.Insert(0, entry);
+        while (_shotLog.Count > 5)
+        {
+            _shotLog.RemoveAt(_shotLog.Count - 1);
+        }
+    }
+
+    private string BuildShotLogText()
+    {
+        if (_shotLog.Count == 0)
+        {
+            return "SHOT LOG\n--";
+        }
+
+        string text = "SHOT LOG";
+        for (int i = 0; i < _shotLog.Count; i++)
+        {
+            text += "\n" + _shotLog[i];
+        }
+
+        return text;
+    }
+
+    private static string FormatOffset(Vector2 offsetMeters)
+    {
+        string horizontal = offsetMeters.x >= 0f ? "R" : "L";
+        string vertical = offsetMeters.y >= 0f ? "H" : "L";
+        return $"{horizontal}{Mathf.Abs(offsetMeters.x) * 100f:0} {vertical}{Mathf.Abs(offsetMeters.y) * 100f:0}cm";
     }
 
     private ShotGroupStats CalculateGroupStats()
