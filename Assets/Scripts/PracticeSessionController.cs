@@ -26,9 +26,14 @@ public class PracticeSessionController : MonoBehaviour
     private int _hits;
     private int _totalScore;
     private int _currentTaskIndex;
+    private int _bestScore;
+    private float _bestAccuracy;
     private float _sessionTimer;
     private bool _sessionEnded;
     private string _lastShot = "NO SHOTS FIRED";
+
+    private const string BestScoreKey = "PracticeSession.BestScore";
+    private const string BestAccuracyKey = "PracticeSession.BestAccuracy";
 
     private void Awake()
     {
@@ -38,6 +43,7 @@ public class PracticeSessionController : MonoBehaviour
         }
 
         BuildHud();
+        LoadBestSession();
         StartSession();
     }
 
@@ -171,6 +177,8 @@ public class PracticeSessionController : MonoBehaviour
         {
             bulletSpawner.FireLocked = true;
         }
+
+        SaveBestSession();
     }
 
     private float CurrentTaskDistance
@@ -242,7 +250,7 @@ public class PracticeSessionController : MonoBehaviour
 
         _sessionText.text = $"{status}   SCORE {_totalScore:000}   AMMO {remaining}/{shotsPerSession}";
         _objectiveText.text = $"TASK: HIT {CurrentTaskDistance:0}m TARGET   TIME {FormatTime(_sessionTimer)}   ACC {accuracy:0}%";
-        _lastShotText.text = _lastShot;
+        _lastShotText.text = $"{_lastShot}   PB {_bestScore:000}/{_bestAccuracy:0}%";
         if (bulletSpawner != null)
         {
             float wind = bulletSpawner.WindVelocity.x;
@@ -254,6 +262,30 @@ public class PracticeSessionController : MonoBehaviour
         _hintText.text = _sessionEnded
             ? "PRESS R TO START A NEW STRING"
             : "SPACE FIRE   RMB SCOPE   SHIFT HOLD BREATH   [ ] WIND   - = TEMP   , . ALT";
+    }
+
+    private void LoadBestSession()
+    {
+        _bestScore = PlayerPrefs.GetInt(BestScoreKey, 0);
+        _bestAccuracy = PlayerPrefs.GetFloat(BestAccuracyKey, 0f);
+    }
+
+    private void SaveBestSession()
+    {
+        float accuracy = _shotsFired > 0 ? _hits / (float)_shotsFired * 100f : 0f;
+        bool newBest = _totalScore > _bestScore
+            || (_totalScore == _bestScore && accuracy > _bestAccuracy);
+
+        if (!newBest)
+        {
+            return;
+        }
+
+        _bestScore = _totalScore;
+        _bestAccuracy = accuracy;
+        PlayerPrefs.SetInt(BestScoreKey, _bestScore);
+        PlayerPrefs.SetFloat(BestAccuracyKey, _bestAccuracy);
+        PlayerPrefs.Save();
     }
 
     private void HandleEnvironmentInput(Keyboard keyboard)
