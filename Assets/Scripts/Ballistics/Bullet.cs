@@ -1,41 +1,44 @@
-﻿using UnityEngine;
+using UnityEngine;
+using UnityEngine.Rendering;
 
 /// <summary>
-/// 3D 벡터 기반 물리 탄도 발사체.
-/// - 중력 낙차 (9.8 m/s²)
-/// - 공기 저항 (Drag: ρ, Cd, A, v² 적용)
-/// - 대기 밀도 실시간 반영 (기온/고도 → AtmosphericModel)
-/// - 바람 벡터 외부 주입 지원
-/// - 지형 충돌 및 탄착 이벤트 콜백
+/// 3D vector ballistic projectile with gravity, drag, wind, impact callbacks, and visible tracer.
 /// </summary>
 [RequireComponent(typeof(TrailRenderer))]
 public class Bullet : MonoBehaviour
 {
-    // ── 외부 주입 데이터 (BulletSpawner에서 발사 시 설정) ──────────────────
-    [HideInInspector] public BallisticsData ballisticsData;
-    [HideInInspector] public Vector3 initialVelocity;   // 총구 방향 × 초구속도
-    [HideInInspector] public float ambientTemperature;  // 케스트렐 기온 (°C)
-    [HideInInspector] public float altitude;            // 케스트렐 고도 (m)
-    [HideInInspector] public Vector3 windVelocity;      // 바람 벡터 (m/s, 월드 공간)
+    [Header("Tracer Visuals")]
+    [SerializeField] private bool showTracer = true;
+    [SerializeField] private float tracerLifetime = 1.15f;
+    [SerializeField] private float tracerStartWidth = 0.055f;
+    [SerializeField] private float tracerEndWidth = 0.006f;
+    [SerializeField] private float projectileVisualSize = 0.045f;
+    [SerializeField] private Color tracerHotColor = new Color(1f, 0.82f, 0.28f, 1f);
+    [SerializeField] private Color tracerFadeColor = new Color(1f, 0.22f, 0.04f, 0f);
 
-    // ── 이벤트 ──────────────────────────────────────────────────────────────
-    /// <summary>탄착 이벤트: 충돌 위치, 충돌 표면 법선, 비행 시간(TOF), 충돌체 전달</summary>
+    [HideInInspector] public BallisticsData ballisticsData;
+    [HideInInspector] public Vector3 initialVelocity;
+    [HideInInspector] public float ambientTemperature;
+    [HideInInspector] public float altitude;
+    [HideInInspector] public Vector3 windVelocity;
+
+    /// <summary>Impact event: point, surface normal, time of flight, collider.</summary>
     public System.Action<Vector3, Vector3, float, Collider> OnImpact;
 
-    // ── 내부 상태 ────────────────────────────────────────────────────────────
-    private Vector3 _velocity;          // 현재 속도 벡터 (m/s)
-    private float _timeOfFlight;        // 누적 비행 시간 (초)
-    private float _airDensity;          // 현재 공기 밀도 ρ
+    private Vector3 _velocity;
+    private float _timeOfFlight;
+    private float _airDensity;
     private bool _isActive;
+    private TrailRenderer _trailRenderer;
+    private GameObject _projectileVisual;
 
-    // ── 물리 상수 ────────────────────────────────────────────────────────────
-    private static readonly Vector3 GRAVITY = new Vector3(0f, -9.8f, 0f);
+    private static readonly Vector3 Gravity = new Vector3(0f, -9.8f, 0f);
+    private const float MaxLifetime = 5.0f;
 
-    // ── 수명 제한 (1km 사거리 기준 여유) ────────────────────────────────────
-    private const float MAX_LIFETIME = 5.0f;  // 초
-
-    // ────────────────────────────────────────────────────────────────────────
-    #region Unity Lifecycle
+    private void Awake()
+    {
+        SetupTracerVisuals();
+    }
 
     private void Start()
     {
@@ -43,68 +46,52 @@ public class Bullet : MonoBehaviour
         _timeOfFlight = 0f;
         _isActive = true;
 
-        // 발사 시점에 공기밀도 한 번 계산 (고도는 발사 지점 기준 고정값)
-        // 추후 고도변화 지형에서는 매 프레임 갱신으로 전환 가능
         _airDensity = AtmosphericModel.GetAirDensity(ambientTemperature, altitude);
-
         AtmosphericModel.LogAtmosphericConditions(ambientTemperature, altitude);
     }
 
-    /// <summary>
-    /// FixedUpdate: 물리 연산은 반드시 고정 타임스텝에서 수행.
-    /// Unity 기본 FixedUpdate = 0.02s (50Hz). 저격 시뮬레이터는 0.005s(200Hz) 권장.
-    /// Edit > Project Settings > Time > Fixed Timestep = 0.005 으로 변경할 것.
-    /// </summary>
     private void FixedUpdate()
     {
-        if (!_isActive) return;
+        if (!_isActive)
+        {
+            return;
+        }
 
         float dt = Time.fixedDeltaTime;
         _timeOfFlight += dt;
 
-        // 수명 초과 시 자동 소멸
-        if (_timeOfFlight > MAX_LIFETIME)
+        if (_timeOfFlight > MaxLifetime)
         {
             DestroyBullet();
             return;
         }
 
-        // ── 1. 항력 가속도 계산 ──────────────────────────────────────────
-        // 상대 속도 = 탄환 속도 - 바람 속도 (바람이 불어오는 방향이 저항)
         Vector3 relativeVelocity = _velocity - windVelocity;
         float speed = relativeVelocity.magnitude;
 
-        // Fd = 0.5 × ρ × v² × Cd × A
         float dragForceMagnitude = 0.5f
             * _airDensity
-            * (speed * speed)
+            * speed * speed
             * ballisticsData.dragCoefficient
             * ballisticsData.bulletArea;
 
-        // 항력 방향은 진행 방향의 반대 (속도 정규화 벡터 × 음수)
         Vector3 dragAcceleration = Vector3.zero;
-        if (speed > 0.001f)  // 분모 0 방지
+        if (speed > 0.001f)
         {
-            dragAcceleration = -(dragForceMagnitude / ballisticsData.bulletMass)
-                               * relativeVelocity.normalized;
+            dragAcceleration = -(dragForceMagnitude / ballisticsData.bulletMass) * relativeVelocity.normalized;
         }
 
-        // ── 2. 총 가속도 = 중력 + 항력 ──────────────────────────────────
-        Vector3 totalAcceleration = GRAVITY + dragAcceleration;
-
-        // ── 3. Euler 적분으로 속도 및 위치 갱신 ─────────────────────────
+        Vector3 totalAcceleration = Gravity + dragAcceleration;
         _velocity += totalAcceleration * dt;
         transform.position += _velocity * dt;
 
-        // ── 4. 탄환 회전: 진행 방향으로 자동 정렬 ───────────────────────
         if (_velocity.sqrMagnitude > 0.01f)
         {
             transform.rotation = Quaternion.LookRotation(_velocity);
         }
 
-        // ── 5. 충돌 감지 (SphereCast: 탄환 크기 보정, Raycast보다 안정적) ─
-        float castRadius = 0.01f;   // 탄환 반지름 (m) — 약 10mm
-        float castDistance = speed * dt * 1.5f;  // 이번 프레임 이동 거리 + 여유
+        float castRadius = 0.01f;
+        float castDistance = speed * dt * 1.5f;
 
         if (Physics.SphereCast(
             transform.position,
@@ -112,39 +99,112 @@ public class Bullet : MonoBehaviour
             _velocity.normalized,
             out RaycastHit hit,
             castDistance,
-            ~LayerMask.GetMask("Bullet")))  // 탄환 레이어 자신 제외
+            ~LayerMask.GetMask("Bullet")))
         {
             HandleImpact(hit);
         }
     }
 
-    #endregion
-
-    // ────────────────────────────────────────────────────────────────────────
-    #region Impact & Destruction
-
     private void HandleImpact(RaycastHit hit)
     {
         _isActive = false;
-
-        // 탄착 위치로 즉시 이동
         transform.position = hit.point;
 
-        // 이벤트 발행 → BulletSpawner 또는 ImpactManager에서 수신
-        // (먼지 파티클, TOF 기반 명중음 딜레이, 점수 처리 등)
         OnImpact?.Invoke(hit.point, hit.normal, _timeOfFlight, hit.collider);
 
-        Debug.Log($"[Bullet] 탄착 | 위치: {hit.point} | TOF: {_timeOfFlight:F3}s "
-                + $"| 충돌체: {hit.collider.name} | 잔여속도: {_velocity.magnitude:F1} m/s");
+        Debug.Log($"[Bullet] Impact | Position: {hit.point} | TOF: {_timeOfFlight:F3}s "
+                + $"| Collider: {hit.collider.name} | Remaining velocity: {_velocity.magnitude:F1} m/s");
 
         DestroyBullet();
     }
 
     private void DestroyBullet()
     {
-        // TrailRenderer가 사라지는 경우 잔상이 끊기므로 0.3초 딜레이 후 소멸
-        Destroy(gameObject, 0.3f);
+        if (_projectileVisual != null)
+        {
+            _projectileVisual.SetActive(false);
+        }
+
+        Destroy(gameObject, Mathf.Max(0.3f, tracerLifetime));
     }
 
-    #endregion
+    private void SetupTracerVisuals()
+    {
+        _trailRenderer = GetComponent<TrailRenderer>();
+        if (_trailRenderer == null || !showTracer)
+        {
+            return;
+        }
+
+        _trailRenderer.enabled = true;
+        _trailRenderer.emitting = true;
+        _trailRenderer.time = tracerLifetime;
+        _trailRenderer.minVertexDistance = 0.04f;
+        _trailRenderer.alignment = LineAlignment.View;
+        _trailRenderer.textureMode = LineTextureMode.Stretch;
+        _trailRenderer.shadowCastingMode = ShadowCastingMode.Off;
+        _trailRenderer.receiveShadows = false;
+        _trailRenderer.widthCurve = AnimationCurve.Linear(0f, tracerStartWidth, 1f, tracerEndWidth);
+        _trailRenderer.colorGradient = CreateTracerGradient();
+        _trailRenderer.sharedMaterial = CreateTracerMaterial("Tracer Trail", tracerHotColor);
+
+        _projectileVisual = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        _projectileVisual.name = "Visible Tracer Core";
+        _projectileVisual.transform.SetParent(transform, false);
+        _projectileVisual.transform.localPosition = Vector3.zero;
+        _projectileVisual.transform.localScale = Vector3.one * projectileVisualSize;
+
+        Collider visualCollider = _projectileVisual.GetComponent<Collider>();
+        if (visualCollider != null)
+        {
+            visualCollider.enabled = false;
+        }
+
+        Renderer visualRenderer = _projectileVisual.GetComponent<Renderer>();
+        if (visualRenderer != null)
+        {
+            visualRenderer.shadowCastingMode = ShadowCastingMode.Off;
+            visualRenderer.receiveShadows = false;
+            visualRenderer.sharedMaterial = CreateTracerMaterial("Tracer Core", tracerHotColor);
+        }
+    }
+
+    private Gradient CreateTracerGradient()
+    {
+        Gradient gradient = new Gradient();
+        gradient.SetKeys(
+            new[]
+            {
+                new GradientColorKey(tracerHotColor, 0f),
+                new GradientColorKey(new Color(1f, 0.48f, 0.08f, 1f), 0.55f),
+                new GradientColorKey(tracerFadeColor, 1f),
+            },
+            new[]
+            {
+                new GradientAlphaKey(1f, 0f),
+                new GradientAlphaKey(0.62f, 0.65f),
+                new GradientAlphaKey(0f, 1f),
+            });
+        return gradient;
+    }
+
+    private static Material CreateTracerMaterial(string materialName, Color color)
+    {
+        Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+        if (shader == null)
+        {
+            shader = Shader.Find("Sprites/Default");
+        }
+
+        Material material = new Material(shader);
+        material.name = materialName;
+        material.color = color;
+
+        if (material.HasProperty("_BaseColor"))
+        {
+            material.SetColor("_BaseColor", color);
+        }
+
+        return material;
+    }
 }
