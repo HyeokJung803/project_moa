@@ -26,6 +26,7 @@ public class BulletSpawner : MonoBehaviour
 
     [Header("Fire Feedback")]
     [SerializeField] private bool enableProceduralFeedback = true;
+    [SerializeField] private float boltCycleSeconds = 1.15f;
     [SerializeField] private float muzzleFlashDuration = 0.045f;
     [SerializeField] private float muzzleFlashIntensity = 5f;
     [SerializeField] private Color muzzleFlashColor = new Color(1f, 0.68f, 0.28f, 1f);
@@ -38,6 +39,9 @@ public class BulletSpawner : MonoBehaviour
     public float AmbientTemperature => ambientTemperature;
     public float Altitude => altitude;
     public Vector3 WindVelocity => windVelocity;
+    public bool IsCyclingBolt => _boltCycleTimer > 0f;
+    public float BoltReady01 => boltCycleSeconds <= 0f ? 1f : 1f - Mathf.Clamp01(_boltCycleTimer / boltCycleSeconds);
+    public string WeaponState => FireLocked ? "LOCKED" : IsCyclingBolt ? "CYCLING" : "READY";
     public bool FireLocked { get; set; }
     public event System.Action OnFired;
     public event System.Action<string> OnImpactFeedback;
@@ -50,6 +54,8 @@ public class BulletSpawner : MonoBehaviour
     private AudioSource _audioSource;
     private AudioClip _shotClip;
     private AudioClip _impactClip;
+    private AudioClip _boltClip;
+    private float _boltCycleTimer;
 
     private void Awake()
     {
@@ -67,6 +73,7 @@ public class BulletSpawner : MonoBehaviour
 
     private void Update()
     {
+        _boltCycleTimer = Mathf.Max(0f, _boltCycleTimer - Time.deltaTime);
         UnityEngine.InputSystem.Keyboard keyboard = UnityEngine.InputSystem.Keyboard.current;
 
         if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame)
@@ -118,6 +125,12 @@ public class BulletSpawner : MonoBehaviour
             return;
         }
 
+        if (IsCyclingBolt)
+        {
+            OnImpactFeedback?.Invoke($"BOLT CYCLING   {BoltReady01 * 100f:0}%");
+            return;
+        }
+
         if (bulletPrefab == null || muzzleTransform == null || ballisticsData == null)
         {
             Debug.LogWarning("[BulletSpawner] Missing bullet prefab, muzzle transform, or ballistics data.");
@@ -150,6 +163,7 @@ public class BulletSpawner : MonoBehaviour
 
         OnFired?.Invoke();
         PlayFireFeedback();
+        StartBoltCycle();
     }
 
     private void HandleBulletImpact(Vector3 impactPoint, Vector3 normal, float timeOfFlight, Collider hitCollider)
@@ -336,6 +350,7 @@ public class BulletSpawner : MonoBehaviour
 
         _shotClip = CreateNoiseClip("Procedural Rifle Shot", 0.12f, 0.78f, 80f);
         _impactClip = CreateNoiseClip("Procedural Distant Impact", 0.07f, 0.34f, 35f);
+        _boltClip = CreateBoltClip();
     }
 
     private void PlayFireFeedback()
@@ -362,6 +377,16 @@ public class BulletSpawner : MonoBehaviour
         }
     }
 
+    private void StartBoltCycle()
+    {
+        _boltCycleTimer = Mathf.Max(0.05f, boltCycleSeconds);
+
+        if (enableProceduralFeedback && _audioSource != null && _boltClip != null)
+        {
+            StartCoroutine(PlayBoltSoundDelayed(0.22f));
+        }
+    }
+
     private IEnumerator FlashRoutine()
     {
         _muzzleFlashLight.intensity = muzzleFlashIntensity;
@@ -376,6 +401,16 @@ public class BulletSpawner : MonoBehaviour
         if (_audioSource != null && _impactClip != null)
         {
             _audioSource.PlayOneShot(_impactClip, 0.55f);
+        }
+    }
+
+    private IEnumerator PlayBoltSoundDelayed(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        if (_audioSource != null && _boltClip != null)
+        {
+            _audioSource.PlayOneShot(_boltClip, 0.34f);
         }
     }
 
@@ -395,6 +430,28 @@ public class BulletSpawner : MonoBehaviour
         }
 
         AudioClip clip = AudioClip.Create(clipName, samples, 1, sampleRate, false);
+        clip.SetData(data, 0);
+        return clip;
+    }
+
+    private static AudioClip CreateBoltClip()
+    {
+        const int sampleRate = 44100;
+        float duration = 0.38f;
+        int samples = Mathf.CeilToInt(sampleRate * duration);
+        float[] data = new float[samples];
+
+        for (int i = 0; i < samples; i++)
+        {
+            float t = i / (float)sampleRate;
+            float clickOne = Mathf.Exp(-260f * Mathf.Abs(t - 0.05f));
+            float scrape = Mathf.Sin(2f * Mathf.PI * 720f * t) * Mathf.Exp(-10f * Mathf.Max(0f, t - 0.08f));
+            float clickTwo = Mathf.Exp(-240f * Mathf.Abs(t - 0.28f));
+            float noise = Random.Range(-1f, 1f) * 0.16f;
+            data[i] = (clickOne * 0.6f + scrape * 0.22f + clickTwo * 0.75f + noise) * 0.28f;
+        }
+
+        AudioClip clip = AudioClip.Create("Procedural Bolt Cycle", samples, 1, sampleRate, false);
         clip.SetData(data, 0);
         return clip;
     }

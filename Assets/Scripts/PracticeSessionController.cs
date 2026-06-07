@@ -248,7 +248,8 @@ public class PracticeSessionController : MonoBehaviour
         float accuracy = _shotsFired > 0 ? _hits / (float)_shotsFired * 100f : 0f;
         string status = _sessionEnded ? "SESSION COMPLETE" : "LIVE PRACTICE";
 
-        _sessionText.text = $"{status}   SCORE {_totalScore:000}   AMMO {remaining}/{shotsPerSession}";
+        string weapon = bulletSpawner != null ? bulletSpawner.WeaponState : "READY";
+        _sessionText.text = $"{status}   SCORE {_totalScore:000}   AMMO {remaining}/{shotsPerSession}   {weapon}";
         _objectiveText.text = $"TASK: HIT {CurrentTaskDistance:0}m TARGET   TIME {FormatTime(_sessionTimer)}   ACC {accuracy:0}%";
         _lastShotText.text = $"{_lastShot}   PB {_bestScore:000}/{_bestAccuracy:0}%";
         if (bulletSpawner != null)
