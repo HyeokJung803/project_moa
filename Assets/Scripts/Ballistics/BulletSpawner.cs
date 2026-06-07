@@ -19,6 +19,9 @@ public class BulletSpawner : MonoBehaviour
 
     [Header("Wind (temporary)")]
     [SerializeField] private Vector3 windVelocity = new Vector3(2f, 0f, 0f);
+    [SerializeField] private bool enableWindGusts = true;
+    [SerializeField] private float gustStrength = 0.65f;
+    [SerializeField] private float gustCycleSpeed = 0.08f;
 
     [Header("Scope Turrets")]
     [SerializeField] private float elevationMOA = 0f;
@@ -39,6 +42,8 @@ public class BulletSpawner : MonoBehaviour
     public float AmbientTemperature => ambientTemperature;
     public float Altitude => altitude;
     public Vector3 WindVelocity => windVelocity;
+    public Vector3 CurrentWindVelocity => GetCurrentWindVelocity();
+    public float GustMetersPerSecond => CurrentWindVelocity.x - windVelocity.x;
     public bool IsCyclingBolt => _boltCycleTimer > 0f;
     public float BoltReady01 => boltCycleSeconds <= 0f ? 1f : 1f - Mathf.Clamp01(_boltCycleTimer / boltCycleSeconds);
     public string WeaponState => FireLocked ? "LOCKED" : IsCyclingBolt ? "CYCLING" : "READY";
@@ -111,6 +116,11 @@ public class BulletSpawner : MonoBehaviour
         windVelocity = Vector3.ClampMagnitude(velocity, 25f);
     }
 
+    public void SetGustStrength(float metersPerSecond)
+    {
+        gustStrength = Mathf.Clamp(metersPerSecond, 0f, 4f);
+    }
+
     public void AdjustCrosswind(float deltaMetersPerSecond)
     {
         windVelocity = new Vector3(
@@ -165,12 +175,25 @@ public class BulletSpawner : MonoBehaviour
         bullet.initialVelocity = fireDirection * ballisticsData.muzzleVelocity;
         bullet.ambientTemperature = ambientTemperature;
         bullet.altitude = altitude;
-        bullet.windVelocity = windVelocity;
+        bullet.windVelocity = CurrentWindVelocity;
         bullet.OnImpact += HandleBulletImpact;
 
         OnFired?.Invoke();
         PlayFireFeedback();
         StartBoltCycle();
+    }
+
+    private Vector3 GetCurrentWindVelocity()
+    {
+        if (!enableWindGusts || Mathf.Approximately(gustStrength, 0f))
+        {
+            return windVelocity;
+        }
+
+        float noise = Mathf.PerlinNoise(Time.time * gustCycleSpeed + 19.7f, 0.37f);
+        float gust = (noise - 0.5f) * 2f * gustStrength;
+        float lateralPulse = Mathf.Sin(Time.time * gustCycleSpeed * 9.1f + 1.4f) * gustStrength * 0.18f;
+        return windVelocity + new Vector3(gust + lateralPulse, 0f, 0f);
     }
 
     private void HandleBulletImpact(Vector3 impactPoint, Vector3 normal, float timeOfFlight, Collider hitCollider)

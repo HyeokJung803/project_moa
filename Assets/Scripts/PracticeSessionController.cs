@@ -131,7 +131,7 @@ public class PracticeSessionController : MonoBehaviour
         RefreshHud();
     }
 
-    public void ConfigureCourse(string courseName, int shotCount, float parSeconds, float[] distances, Vector3 windVelocity, float temperatureCelsius, float altitudeMeters)
+    public void ConfigureCourse(string courseName, int shotCount, float parSeconds, float[] distances, Vector3 windVelocity, float gustMetersPerSecond, float temperatureCelsius, float altitudeMeters)
     {
         _courseName = string.IsNullOrWhiteSpace(courseName) ? "STANDARD" : courseName.ToUpperInvariant();
         shotsPerSession = Mathf.Clamp(shotCount, 3, 30);
@@ -143,6 +143,7 @@ public class PracticeSessionController : MonoBehaviour
         if (bulletSpawner != null)
         {
             bulletSpawner.SetWindVelocity(windVelocity);
+            bulletSpawner.SetGustStrength(gustMetersPerSecond);
             bulletSpawner.SetAtmosphere(temperatureCelsius, altitudeMeters);
         }
 
@@ -326,10 +327,10 @@ public class PracticeSessionController : MonoBehaviour
         _lastShotText.text = $"{_lastShot}{group}   PB {_bestScore:000}/{_bestAccuracy:0}%";
         if (bulletSpawner != null)
         {
-            float wind = bulletSpawner.WindVelocity.x;
+            float wind = bulletSpawner.CurrentWindVelocity.x;
             string windDirection = wind >= 0f ? "L->R" : "R->L";
             _environmentText.text =
-                $"KESTREL  {bulletSpawner.AmbientTemperature:+0;-0;0}C   ALT {bulletSpawner.Altitude:0}m   WIND {windDirection} {Mathf.Abs(wind):0.0}m/s";
+                $"KESTREL  {bulletSpawner.AmbientTemperature:+0;-0;0}C   ALT {bulletSpawner.Altitude:0}m   WIND {windDirection} {Mathf.Abs(wind):0.0}m/s  GUST {bulletSpawner.GustMetersPerSecond:+0.0;-0.0;0.0}";
         }
 
         _hintText.text = _sessionEnded

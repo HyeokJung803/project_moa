@@ -98,7 +98,7 @@ public class MissionFlowController : MonoBehaviour
         _bodyText.text =
             "MOUNTAIN PRECISION COURSE\n" +
             $"{_selectedCourse.Name}  |  {_selectedCourse.Shots} ROUND STRING  |  {_selectedCourse.ParSeconds:0}s PAR\n" +
-            $"WIND {_selectedCourse.Wind.x:+0.0;-0.0;0.0}m/s  ALT {_selectedCourse.Altitude:0}m  TEMP {_selectedCourse.Temperature:+0;-0;0}C";
+            $"WIND {_selectedCourse.Wind.x:+0.0;-0.0;0.0}m/s  GUST +/-{_selectedCourse.Gust:0.0}  ALT {_selectedCourse.Altitude:0}m  TEMP {_selectedCourse.Temperature:+0;-0;0}C";
         _footerText.text = "1 NOVICE   2 STANDARD   3 EXPERT   ENTER START";
         _restartAllowed = false;
         SetMenuOpen(true);
@@ -172,6 +172,7 @@ public class MissionFlowController : MonoBehaviour
             _selectedCourse.ParSeconds,
             _selectedCourse.Distances,
             _selectedCourse.Wind,
+            _selectedCourse.Gust,
             _selectedCourse.Temperature,
             _selectedCourse.Altitude);
     }
@@ -302,13 +303,14 @@ public class MissionFlowController : MonoBehaviour
 
     private readonly struct CoursePreset
     {
-        public CoursePreset(string name, int shots, float parSeconds, float[] distances, Vector3 wind, float temperature, float altitude)
+        public CoursePreset(string name, int shots, float parSeconds, float[] distances, Vector3 wind, float gust, float temperature, float altitude)
         {
             Name = name;
             Shots = shots;
             ParSeconds = parSeconds;
             Distances = distances;
             Wind = wind;
+            Gust = gust;
             Temperature = temperature;
             Altitude = altitude;
         }
@@ -318,6 +320,7 @@ public class MissionFlowController : MonoBehaviour
         public float ParSeconds { get; }
         public float[] Distances { get; }
         public Vector3 Wind { get; }
+        public float Gust { get; }
         public float Temperature { get; }
         public float Altitude { get; }
 
@@ -329,6 +332,7 @@ public class MissionFlowController : MonoBehaviour
                 210f,
                 new[] { 100f, 200f, 300f },
                 new Vector3(1.2f, 0f, 0f),
+                0.35f,
                 15f,
                 100f);
         }
@@ -341,6 +345,7 @@ public class MissionFlowController : MonoBehaviour
                 180f,
                 new[] { 100f, 200f, 300f, 350f, 500f },
                 new Vector3(2f, 0f, 0f),
+                0.65f,
                 15f,
                 100f);
         }
@@ -353,6 +358,7 @@ public class MissionFlowController : MonoBehaviour
                 150f,
                 new[] { 200f, 300f, 350f, 500f },
                 new Vector3(4.5f, 0f, 0f),
+                1.25f,
                 28f,
                 850f);
         }
