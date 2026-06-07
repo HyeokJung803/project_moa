@@ -18,6 +18,7 @@ public class MissionFlowController : MonoBehaviour
     private bool _isMenuOpen;
     private bool _hasStarted;
     private bool _restartAllowed;
+    private CoursePreset _selectedCourse = CoursePreset.Standard();
 
     private void Awake()
     {
@@ -59,6 +60,12 @@ public class MissionFlowController : MonoBehaviour
             return;
         }
 
+        if (_isMenuOpen && TrySelectCourse(keyboard))
+        {
+            ShowBriefing();
+            return;
+        }
+
         if (!_hasStarted && (keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame))
         {
             StartMission();
@@ -90,9 +97,9 @@ public class MissionFlowController : MonoBehaviour
         _titleText.text = "MOA RANGE";
         _bodyText.text =
             "MOUNTAIN PRECISION COURSE\n" +
-            "10 ROUND STRING  |  STATIC AND MOVING TARGETS\n" +
-            "READ WIND, HOLD BREATH, DIAL TURRETS, CONFIRM IMPACTS";
-        _footerText.text = "ENTER START   ESC PAUSE";
+            $"{_selectedCourse.Name}  |  {_selectedCourse.Shots} ROUND STRING  |  {_selectedCourse.ParSeconds:0}s PAR\n" +
+            $"WIND {_selectedCourse.Wind.x:+0.0;-0.0;0.0}m/s  ALT {_selectedCourse.Altitude:0}m  TEMP {_selectedCourse.Temperature:+0;-0;0}C";
+        _footerText.text = "1 NOVICE   2 STANDARD   3 EXPERT   ENTER START";
         _restartAllowed = false;
         SetMenuOpen(true);
     }
@@ -113,6 +120,7 @@ public class MissionFlowController : MonoBehaviour
         _hasStarted = true;
         if (practiceSession != null)
         {
+            ApplySelectedCourse();
             practiceSession.StartSession();
         }
 
@@ -128,6 +136,7 @@ public class MissionFlowController : MonoBehaviour
     {
         if (practiceSession != null)
         {
+            ApplySelectedCourse();
             practiceSession.StartSession();
         }
 
@@ -148,6 +157,23 @@ public class MissionFlowController : MonoBehaviour
         _footerText.text = "ENTER OR R NEW STRING   ESC CLOSE";
         _restartAllowed = true;
         SetMenuOpen(true);
+    }
+
+    private void ApplySelectedCourse()
+    {
+        if (practiceSession == null)
+        {
+            return;
+        }
+
+        practiceSession.ConfigureCourse(
+            _selectedCourse.Name,
+            _selectedCourse.Shots,
+            _selectedCourse.ParSeconds,
+            _selectedCourse.Distances,
+            _selectedCourse.Wind,
+            _selectedCourse.Temperature,
+            _selectedCourse.Altitude);
     }
 
     private void SetMenuOpen(bool open)
@@ -176,6 +202,29 @@ public class MissionFlowController : MonoBehaviour
         return keyboard.rKey.wasPressedThisFrame
             || keyboard.enterKey.wasPressedThisFrame
             || keyboard.numpadEnterKey.wasPressedThisFrame;
+    }
+
+    private bool TrySelectCourse(Keyboard keyboard)
+    {
+        if (keyboard.digit1Key.wasPressedThisFrame || keyboard.numpad1Key.wasPressedThisFrame)
+        {
+            _selectedCourse = CoursePreset.Novice();
+            return true;
+        }
+
+        if (keyboard.digit2Key.wasPressedThisFrame || keyboard.numpad2Key.wasPressedThisFrame)
+        {
+            _selectedCourse = CoursePreset.Standard();
+            return true;
+        }
+
+        if (keyboard.digit3Key.wasPressedThisFrame || keyboard.numpad3Key.wasPressedThisFrame)
+        {
+            _selectedCourse = CoursePreset.Expert();
+            return true;
+        }
+
+        return false;
     }
 
     private void BuildOverlay()
@@ -249,5 +298,63 @@ public class MissionFlowController : MonoBehaviour
         rect.anchorMax = Vector2.one;
         rect.offsetMin = Vector2.zero;
         rect.offsetMax = Vector2.zero;
+    }
+
+    private readonly struct CoursePreset
+    {
+        public CoursePreset(string name, int shots, float parSeconds, float[] distances, Vector3 wind, float temperature, float altitude)
+        {
+            Name = name;
+            Shots = shots;
+            ParSeconds = parSeconds;
+            Distances = distances;
+            Wind = wind;
+            Temperature = temperature;
+            Altitude = altitude;
+        }
+
+        public string Name { get; }
+        public int Shots { get; }
+        public float ParSeconds { get; }
+        public float[] Distances { get; }
+        public Vector3 Wind { get; }
+        public float Temperature { get; }
+        public float Altitude { get; }
+
+        public static CoursePreset Novice()
+        {
+            return new CoursePreset(
+                "NOVICE",
+                8,
+                210f,
+                new[] { 100f, 200f, 300f },
+                new Vector3(1.2f, 0f, 0f),
+                15f,
+                100f);
+        }
+
+        public static CoursePreset Standard()
+        {
+            return new CoursePreset(
+                "STANDARD",
+                10,
+                180f,
+                new[] { 100f, 200f, 300f, 350f, 500f },
+                new Vector3(2f, 0f, 0f),
+                15f,
+                100f);
+        }
+
+        public static CoursePreset Expert()
+        {
+            return new CoursePreset(
+                "EXPERT",
+                12,
+                150f,
+                new[] { 200f, 300f, 350f, 500f },
+                new Vector3(4.5f, 0f, 0f),
+                28f,
+                850f);
+        }
     }
 }

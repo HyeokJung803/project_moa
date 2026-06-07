@@ -16,6 +16,10 @@ public class PracticeSessionController : MonoBehaviour
     [Header("References")]
     [SerializeField] private BulletSpawner bulletSpawner;
 
+    public string CourseName => _courseName;
+    public int ShotsPerSession => shotsPerSession;
+    public float ParTimeSeconds => parTimeSeconds;
+
     private CanvasGroup _canvasGroup;
     private Text _sessionText;
     private Text _objectiveText;
@@ -35,10 +39,11 @@ public class PracticeSessionController : MonoBehaviour
     private ShotGroupStats _groupStats;
     private float _sessionTimer;
     private bool _sessionEnded;
+    private string _courseName = "STANDARD";
     private string _lastShot = "NO SHOTS FIRED";
 
-    private const string BestScoreKey = "PracticeSession.BestScore";
-    private const string BestAccuracyKey = "PracticeSession.BestAccuracy";
+    private const string BestScorePrefix = "PracticeSession.BestScore.";
+    private const string BestAccuracyPrefix = "PracticeSession.BestAccuracy.";
 
     public event System.Action<PracticeSessionResult> OnSessionEnded;
 
@@ -79,6 +84,12 @@ public class PracticeSessionController : MonoBehaviour
     private void Update()
     {
         Keyboard keyboard = Keyboard.current;
+        if (bulletSpawner != null && bulletSpawner.InputLocked)
+        {
+            RefreshHud();
+            return;
+        }
+
         if (keyboard != null && keyboard.rKey.wasPressedThisFrame)
         {
             StartSession();
@@ -118,6 +129,25 @@ public class PracticeSessionController : MonoBehaviour
         }
 
         RefreshHud();
+    }
+
+    public void ConfigureCourse(string courseName, int shotCount, float parSeconds, float[] distances, Vector3 windVelocity, float temperatureCelsius, float altitudeMeters)
+    {
+        _courseName = string.IsNullOrWhiteSpace(courseName) ? "STANDARD" : courseName.ToUpperInvariant();
+        shotsPerSession = Mathf.Clamp(shotCount, 3, 30);
+        parTimeSeconds = Mathf.Clamp(parSeconds, 30f, 600f);
+        taskDistances = distances != null && distances.Length > 0
+            ? (float[])distances.Clone()
+            : new[] { 100f, 200f, 300f, 350f, 500f };
+
+        if (bulletSpawner != null)
+        {
+            bulletSpawner.SetWindVelocity(windVelocity);
+            bulletSpawner.SetAtmosphere(temperatureCelsius, altitudeMeters);
+        }
+
+        LoadBestSession();
+        StartSession();
     }
 
     private void HandleFired()
@@ -287,7 +317,7 @@ public class PracticeSessionController : MonoBehaviour
 
         int remaining = Mathf.Max(0, shotsPerSession - _shotsFired);
         float accuracy = _shotsFired > 0 ? _hits / (float)_shotsFired * 100f : 0f;
-        string status = _sessionEnded ? "SESSION COMPLETE" : "LIVE PRACTICE";
+        string status = _sessionEnded ? "SESSION COMPLETE" : _courseName;
 
         string weapon = bulletSpawner != null ? bulletSpawner.WeaponState : "READY";
         _sessionText.text = $"{status}   SCORE {_totalScore:000}   AMMO {remaining}/{shotsPerSession}   {weapon}";
@@ -418,6 +448,9 @@ public class PracticeSessionController : MonoBehaviour
         PlayerPrefs.Save();
         return true;
     }
+
+    private string BestScoreKey => BestScorePrefix + _courseName;
+    private string BestAccuracyKey => BestAccuracyPrefix + _courseName;
 
     private void HandleEnvironmentInput(Keyboard keyboard)
     {
