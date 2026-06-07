@@ -42,6 +42,7 @@ public class BulletSpawner : MonoBehaviour
     public bool IsCyclingBolt => _boltCycleTimer > 0f;
     public float BoltReady01 => boltCycleSeconds <= 0f ? 1f : 1f - Mathf.Clamp01(_boltCycleTimer / boltCycleSeconds);
     public string WeaponState => FireLocked ? "LOCKED" : IsCyclingBolt ? "CYCLING" : "READY";
+    public bool InputLocked { get; set; }
     public bool FireLocked { get; set; }
     public event System.Action OnFired;
     public event System.Action<string> OnImpactFeedback;
@@ -119,6 +120,11 @@ public class BulletSpawner : MonoBehaviour
 
     private void Fire()
     {
+        if (InputLocked)
+        {
+            return;
+        }
+
         if (FireLocked)
         {
             OnImpactFeedback?.Invoke("SESSION COMPLETE   PRESS R");

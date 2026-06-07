@@ -42,6 +42,7 @@ public class MountainRangeBuilder : MonoBehaviour
         BuildBackstop();
         BuildWindFlags();
         TuneLighting();
+        EnsureMissionFlow();
         EnsurePracticeSession();
         EnsureSpotterCamera();
     }
@@ -277,6 +278,16 @@ public class MountainRangeBuilder : MonoBehaviour
         }
 
         gameObject.AddComponent<PracticeSessionController>();
+    }
+
+    private void EnsureMissionFlow()
+    {
+        if (FindAnyObjectByType<MissionFlowController>() != null)
+        {
+            return;
+        }
+
+        gameObject.AddComponent<MissionFlowController>();
     }
 
     private void EnsureSpotterCamera()
