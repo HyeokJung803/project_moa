@@ -42,6 +42,7 @@ public class MountainRangeBuilder : MonoBehaviour
         BuildWindFlags();
         TuneLighting();
         EnsurePracticeSession();
+        EnsureSpotterCamera();
     }
 
     private void HideDefaultGreyBox()
@@ -254,6 +255,16 @@ public class MountainRangeBuilder : MonoBehaviour
         }
 
         gameObject.AddComponent<PracticeSessionController>();
+    }
+
+    private void EnsureSpotterCamera()
+    {
+        if (FindAnyObjectByType<ImpactSpotterCamera>() != null)
+        {
+            return;
+        }
+
+        gameObject.AddComponent<ImpactSpotterCamera>();
     }
 
     private void BuildGroundVariation()
