@@ -41,6 +41,7 @@ public class MountainRangeBuilder : MonoBehaviour
         BuildBackstop();
         BuildWindFlags();
         TuneLighting();
+        EnsurePracticeSession();
     }
 
     private void HideDefaultGreyBox()
@@ -243,6 +244,16 @@ public class MountainRangeBuilder : MonoBehaviour
             sun.intensity = 1.05f;
             sun.color = new Color(1f, 0.88f, 0.72f);
         }
+    }
+
+    private void EnsurePracticeSession()
+    {
+        if (FindAnyObjectByType<PracticeSessionController>() != null)
+        {
+            return;
+        }
+
+        gameObject.AddComponent<PracticeSessionController>();
     }
 
     private void BuildGroundVariation()

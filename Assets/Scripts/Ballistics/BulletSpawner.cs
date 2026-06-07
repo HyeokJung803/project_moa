@@ -35,8 +35,10 @@ public class BulletSpawner : MonoBehaviour
 
     public float ElevationMOA => elevationMOA;
     public float WindageMOA => windageMOA;
+    public bool FireLocked { get; set; }
     public event System.Action OnFired;
     public event System.Action<string> OnImpactFeedback;
+    public event System.Action<ShotResult> OnShotResolved;
 
     private const float MOA_TO_RAD = 0.000290888f;
 
@@ -88,6 +90,12 @@ public class BulletSpawner : MonoBehaviour
 
     private void Fire()
     {
+        if (FireLocked)
+        {
+            OnImpactFeedback?.Invoke("SESSION COMPLETE   PRESS R");
+            return;
+        }
+
         if (bulletPrefab == null || muzzleTransform == null || ballisticsData == null)
         {
             Debug.LogWarning("[BulletSpawner] Missing bullet prefab, muzzle transform, or ballistics data.");
@@ -139,11 +147,13 @@ public class BulletSpawner : MonoBehaviour
             int score = target.GetScore(impactPoint);
             string feedback = $"{target.DistanceMeters:0}m HIT  SCORE {score}  TOF {timeOfFlight:F2}s";
             OnImpactFeedback?.Invoke(feedback);
+            OnShotResolved?.Invoke(ShotResult.Hit(target.DistanceMeters, distanceToImpact, score, timeOfFlight, impactPoint));
             Debug.Log($"[RangeTarget] {feedback}");
         }
         else
         {
             OnImpactFeedback?.Invoke($"MISS  {distanceToImpact:0}m  TOF {timeOfFlight:F2}s");
+            OnShotResolved?.Invoke(ShotResult.Miss(distanceToImpact, timeOfFlight, impactPoint));
         }
 
         Debug.Log($"[BulletSpawner] TOF: {timeOfFlight:F3}s | Distance: {distanceToImpact:F1}m "
@@ -365,5 +375,35 @@ public class BulletSpawner : MonoBehaviour
         AudioClip clip = AudioClip.Create(clipName, samples, 1, sampleRate, false);
         clip.SetData(data, 0);
         return clip;
+    }
+}
+
+public readonly struct ShotResult
+{
+    public ShotResult(bool hitTarget, float targetDistanceMeters, float impactDistanceMeters, int score, float timeOfFlight, Vector3 impactPoint)
+    {
+        HitTarget = hitTarget;
+        TargetDistanceMeters = targetDistanceMeters;
+        ImpactDistanceMeters = impactDistanceMeters;
+        Score = score;
+        TimeOfFlight = timeOfFlight;
+        ImpactPoint = impactPoint;
+    }
+
+    public bool HitTarget { get; }
+    public float TargetDistanceMeters { get; }
+    public float ImpactDistanceMeters { get; }
+    public int Score { get; }
+    public float TimeOfFlight { get; }
+    public Vector3 ImpactPoint { get; }
+
+    public static ShotResult Hit(float targetDistanceMeters, float impactDistanceMeters, int score, float timeOfFlight, Vector3 impactPoint)
+    {
+        return new ShotResult(true, targetDistanceMeters, impactDistanceMeters, score, timeOfFlight, impactPoint);
+    }
+
+    public static ShotResult Miss(float impactDistanceMeters, float timeOfFlight, Vector3 impactPoint)
+    {
+        return new ShotResult(false, 0f, impactDistanceMeters, 0, timeOfFlight, impactPoint);
     }
 }
