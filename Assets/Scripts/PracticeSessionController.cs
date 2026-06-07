@@ -19,6 +19,7 @@ public class PracticeSessionController : MonoBehaviour
     private Text _sessionText;
     private Text _objectiveText;
     private Text _lastShotText;
+    private Text _environmentText;
     private Text _hintText;
 
     private int _shotsFired;
@@ -69,6 +70,8 @@ public class PracticeSessionController : MonoBehaviour
         {
             StartSession();
         }
+
+        HandleEnvironmentInput(keyboard);
 
         if (!_sessionEnded)
         {
@@ -216,6 +219,7 @@ public class PracticeSessionController : MonoBehaviour
         _sessionText = CreateText("Session Text", backingRect, new Vector2(18f, -16f), 24, TextAnchor.UpperLeft);
         _objectiveText = CreateText("Objective Text", backingRect, new Vector2(18f, -56f), 22, TextAnchor.UpperLeft);
         _lastShotText = CreateText("Last Shot Text", backingRect, new Vector2(18f, -94f), 20, TextAnchor.UpperLeft);
+        _environmentText = CreateText("Environment Text", backingRect, new Vector2(18f, -126f), 18, TextAnchor.UpperLeft);
         _hintText = CreateText("Hint Text", canvasRect, new Vector2(0f, 26f), 18, TextAnchor.MiddleCenter);
 
         RectTransform hintRect = _hintText.rectTransform;
@@ -239,9 +243,52 @@ public class PracticeSessionController : MonoBehaviour
         _sessionText.text = $"{status}   SCORE {_totalScore:000}   AMMO {remaining}/{shotsPerSession}";
         _objectiveText.text = $"TASK: HIT {CurrentTaskDistance:0}m TARGET   TIME {FormatTime(_sessionTimer)}   ACC {accuracy:0}%";
         _lastShotText.text = _lastShot;
+        if (bulletSpawner != null)
+        {
+            float wind = bulletSpawner.WindVelocity.x;
+            string windDirection = wind >= 0f ? "L->R" : "R->L";
+            _environmentText.text =
+                $"KESTREL  {bulletSpawner.AmbientTemperature:+0;-0;0}C   ALT {bulletSpawner.Altitude:0}m   WIND {windDirection} {Mathf.Abs(wind):0.0}m/s";
+        }
+
         _hintText.text = _sessionEnded
             ? "PRESS R TO START A NEW STRING"
-            : "SPACE FIRE   RMB SCOPE   SHIFT HOLD BREATH   MOUSE WHEEL TURRETS   R RESET";
+            : "SPACE FIRE   RMB SCOPE   SHIFT HOLD BREATH   [ ] WIND   - = TEMP   , . ALT";
+    }
+
+    private void HandleEnvironmentInput(Keyboard keyboard)
+    {
+        if (keyboard == null || bulletSpawner == null)
+        {
+            return;
+        }
+
+        if (keyboard.leftBracketKey.wasPressedThisFrame)
+        {
+            bulletSpawner.AdjustCrosswind(-0.5f);
+        }
+        else if (keyboard.rightBracketKey.wasPressedThisFrame)
+        {
+            bulletSpawner.AdjustCrosswind(0.5f);
+        }
+
+        if (keyboard.minusKey.wasPressedThisFrame)
+        {
+            bulletSpawner.SetAtmosphere(bulletSpawner.AmbientTemperature - 1f, bulletSpawner.Altitude);
+        }
+        else if (keyboard.equalsKey.wasPressedThisFrame)
+        {
+            bulletSpawner.SetAtmosphere(bulletSpawner.AmbientTemperature + 1f, bulletSpawner.Altitude);
+        }
+
+        if (keyboard.commaKey.wasPressedThisFrame)
+        {
+            bulletSpawner.SetAtmosphere(bulletSpawner.AmbientTemperature, bulletSpawner.Altitude - 50f);
+        }
+        else if (keyboard.periodKey.wasPressedThisFrame)
+        {
+            bulletSpawner.SetAtmosphere(bulletSpawner.AmbientTemperature, bulletSpawner.Altitude + 50f);
+        }
     }
 
     private static string FormatTime(float seconds)

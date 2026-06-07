@@ -35,6 +35,9 @@ public class BulletSpawner : MonoBehaviour
 
     public float ElevationMOA => elevationMOA;
     public float WindageMOA => windageMOA;
+    public float AmbientTemperature => ambientTemperature;
+    public float Altitude => altitude;
+    public Vector3 WindVelocity => windVelocity;
     public bool FireLocked { get; set; }
     public event System.Action OnFired;
     public event System.Action<string> OnImpactFeedback;
@@ -86,6 +89,25 @@ public class BulletSpawner : MonoBehaviour
     {
         elevationMOA = elevation;
         windageMOA = windage;
+    }
+
+    public void SetAtmosphere(float temperatureCelsius, float altitudeMeters)
+    {
+        ambientTemperature = Mathf.Clamp(temperatureCelsius, -35f, 50f);
+        altitude = Mathf.Clamp(altitudeMeters, -100f, 4500f);
+    }
+
+    public void SetWindVelocity(Vector3 velocity)
+    {
+        windVelocity = Vector3.ClampMagnitude(velocity, 25f);
+    }
+
+    public void AdjustCrosswind(float deltaMetersPerSecond)
+    {
+        windVelocity = new Vector3(
+            Mathf.Clamp(windVelocity.x + deltaMetersPerSecond, -18f, 18f),
+            windVelocity.y,
+            windVelocity.z);
     }
 
     private void Fire()
