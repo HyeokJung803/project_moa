@@ -38,6 +38,7 @@ public class MountainRangeBuilder : MonoBehaviour
         BuildTerrain();
         BuildFiringLine();
         BuildTargetLanes();
+        BuildMovingTargetLane();
         BuildBackstop();
         BuildWindFlags();
         TuneLighting();
@@ -179,6 +180,27 @@ public class MountainRangeBuilder : MonoBehaviour
             BuildTarget(distance, x);
             BuildDistanceSign(distance, x - 2.3f);
         }
+    }
+
+    private void BuildMovingTargetLane()
+    {
+        const float distance = 350f;
+        GameObject carrier = new GameObject("350m Moving Target Carrier");
+        carrier.transform.SetParent(transform, false);
+        carrier.transform.position = new Vector3(0f, 0f, distance);
+        carrier.AddComponent<MovingTarget>().Configure(8.5f, 1.15f, 0.55f);
+        _createdObjects.Add(carrier);
+
+        CreateChildBox(carrier.transform, "Moving Target Rail", new Vector3(0f, 0.55f, 0.08f), new Vector3(9.4f, 0.08f, 0.12f), _blackMaterial);
+        CreateChildBox(carrier.transform, "Moving Target Left Stand", new Vector3(-4.8f, 0.58f, 0f), new Vector3(0.12f, 1.16f, 0.12f), _woodMaterial);
+        CreateChildBox(carrier.transform, "Moving Target Right Stand", new Vector3(4.8f, 0.58f, 0f), new Vector3(0.12f, 1.16f, 0.12f), _woodMaterial);
+
+        GameObject board = CreateChildBox(carrier.transform, "350m Moving Target Board", new Vector3(0f, 1.35f, 0.04f), new Vector3(1.25f, 1.25f, 0.065f), _paperMaterial);
+        board.AddComponent<RangeTarget>().Configure(distance, 0.52f);
+        CreateChildRing(carrier.transform, "350m Moving Outer Ring", new Vector3(0f, 1.35f, -0.015f), 0.52f, _blackMaterial);
+        CreateChildRing(carrier.transform, "350m Moving Middle Ring", new Vector3(0f, 1.35f, -0.025f), 0.32f, _blackMaterial);
+        CreateChildRing(carrier.transform, "350m Moving Bull", new Vector3(0f, 1.35f, -0.035f), 0.13f, _redMaterial);
+        BuildDistanceSign(distance, -6.2f);
     }
 
     private void BuildTarget(float distance, float x)
@@ -350,6 +372,17 @@ public class MountainRangeBuilder : MonoBehaviour
         return box;
     }
 
+    private GameObject CreateChildBox(Transform parent, string objectName, Vector3 localPosition, Vector3 scale, Material material)
+    {
+        GameObject box = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        box.name = objectName;
+        box.transform.SetParent(parent, false);
+        box.transform.localPosition = localPosition;
+        box.transform.localScale = scale;
+        box.GetComponent<Renderer>().sharedMaterial = material;
+        return box;
+    }
+
     private GameObject CreateMound(string objectName, Vector3 position, Vector3 scale, Material material)
     {
         GameObject mound = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -375,6 +408,18 @@ public class MountainRangeBuilder : MonoBehaviour
         DisableCollider(ring);
 
         _createdObjects.Add(ring);
+    }
+
+    private void CreateChildRing(Transform parent, string objectName, Vector3 localPosition, float radius, Material material)
+    {
+        GameObject ring = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        ring.name = objectName;
+        ring.transform.SetParent(parent, false);
+        ring.transform.localPosition = localPosition;
+        ring.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        ring.transform.localScale = new Vector3(radius, 0.015f, radius);
+        ring.GetComponent<Renderer>().sharedMaterial = material;
+        DisableCollider(ring);
     }
 
     private Material MakeMaterial(string materialName, Color color)
