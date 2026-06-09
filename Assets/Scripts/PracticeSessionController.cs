@@ -25,6 +25,7 @@ public class PracticeSessionController : MonoBehaviour
     private Text _objectiveText;
     private Text _lastShotText;
     private Text _environmentText;
+    private Text _dopeText;
     private Text _shotLogText;
     private Text _hintText;
 
@@ -37,13 +38,17 @@ public class PracticeSessionController : MonoBehaviour
     private readonly List<ShotGroupSample> _groupSamples = new List<ShotGroupSample>();
     private readonly List<string> _shotLog = new List<string>();
     private ShotGroupStats _groupStats;
+    private DopeSolution _cachedDope = DopeSolution.Invalid(0f);
     private float _sessionTimer;
+    private float _dopeRefreshTimer;
+    private float _cachedDopeDistance = -1f;
     private bool _sessionEnded;
     private string _courseName = "STANDARD";
     private string _lastShot = "NO SHOTS FIRED";
 
     private const string BestScorePrefix = "PracticeSession.BestScore.";
     private const string BestAccuracyPrefix = "PracticeSession.BestAccuracy.";
+    private const float DopeRefreshInterval = 0.25f;
 
     public event System.Action<PracticeSessionResult> OnSessionEnded;
 
@@ -119,6 +124,9 @@ public class PracticeSessionController : MonoBehaviour
         _groupSamples.Clear();
         _shotLog.Clear();
         _groupStats = ShotGroupStats.Empty;
+        _cachedDope = DopeSolution.Invalid(0f);
+        _cachedDopeDistance = -1f;
+        _dopeRefreshTimer = 0f;
         _sessionTimer = parTimeSeconds;
         _sessionEnded = false;
         _lastShot = "NO SHOTS FIRED";
@@ -284,12 +292,13 @@ public class PracticeSessionController : MonoBehaviour
         backingRect.anchorMax = new Vector2(0f, 1f);
         backingRect.pivot = new Vector2(0f, 1f);
         backingRect.anchoredPosition = new Vector2(24f, -22f);
-        backingRect.sizeDelta = new Vector2(460f, 158f);
+        backingRect.sizeDelta = new Vector2(540f, 190f);
 
         _sessionText = CreateText("Session Text", backingRect, new Vector2(18f, -16f), 24, TextAnchor.UpperLeft);
         _objectiveText = CreateText("Objective Text", backingRect, new Vector2(18f, -56f), 22, TextAnchor.UpperLeft);
         _lastShotText = CreateText("Last Shot Text", backingRect, new Vector2(18f, -94f), 20, TextAnchor.UpperLeft);
         _environmentText = CreateText("Environment Text", backingRect, new Vector2(18f, -126f), 18, TextAnchor.UpperLeft);
+        _dopeText = CreateText("Dope Text", backingRect, new Vector2(18f, -156f), 18, TextAnchor.UpperLeft);
         _hintText = CreateText("Hint Text", canvasRect, new Vector2(0f, 26f), 18, TextAnchor.MiddleCenter);
 
         Image logBacking = CreateImage("Shot Log Backing", canvasRect, new Color(0f, 0f, 0f, 0.26f));
@@ -331,6 +340,11 @@ public class PracticeSessionController : MonoBehaviour
             string windDirection = wind >= 0f ? "L->R" : "R->L";
             _environmentText.text =
                 $"KESTREL  {bulletSpawner.AmbientTemperature:+0;-0;0}C   ALT {bulletSpawner.Altitude:0}m   WIND {windDirection} {Mathf.Abs(wind):0.0}m/s  GUST {bulletSpawner.GustMetersPerSecond:+0.0;-0.0;0.0}";
+            RefreshDopeDisplay();
+        }
+        else if (_dopeText != null)
+        {
+            _dopeText.text = "DOPE UNAVAILABLE";
         }
 
         _hintText.text = _sessionEnded
@@ -341,6 +355,33 @@ public class PracticeSessionController : MonoBehaviour
         {
             _shotLogText.text = BuildShotLogText();
         }
+    }
+
+    private void RefreshDopeDisplay()
+    {
+        if (_dopeText == null)
+        {
+            return;
+        }
+
+        if (bulletSpawner == null)
+        {
+            _dopeText.text = "DOPE UNAVAILABLE";
+            return;
+        }
+
+        float distance = CurrentTaskDistance;
+        _dopeRefreshTimer -= Time.unscaledDeltaTime;
+        if (_dopeRefreshTimer <= 0f || !Mathf.Approximately(distance, _cachedDopeDistance))
+        {
+            _cachedDope = bulletSpawner.CalculateDope(distance);
+            _cachedDopeDistance = distance;
+            _dopeRefreshTimer = DopeRefreshInterval;
+        }
+
+        _dopeText.text = _cachedDope.IsValid
+            ? $"DOPE {_cachedDope.DistanceMeters:0}m   E {_cachedDope.ElevationMoa:+0.0;-0.0;0.0} MOA   W {_cachedDope.WindageMoa:+0.0;-0.0;0.0} MOA   TOF {_cachedDope.TimeOfFlight:0.00}s"
+            : "DOPE UNAVAILABLE";
     }
 
     private void AddShotLogEntry(ShotResult result, int bonus, bool taskHit)
@@ -523,7 +564,7 @@ public class PracticeSessionController : MonoBehaviour
         rect.anchorMax = new Vector2(0f, 1f);
         rect.pivot = new Vector2(0f, 1f);
         rect.anchoredPosition = anchoredPosition;
-        rect.sizeDelta = new Vector2(430f, 32f);
+        rect.sizeDelta = new Vector2(510f, 32f);
         return text;
     }
 }

@@ -129,6 +129,63 @@ public class BulletSpawner : MonoBehaviour
             windVelocity.z);
     }
 
+    public DopeSolution CalculateDope(float targetDistanceMeters)
+    {
+        if (ballisticsData == null || targetDistanceMeters <= 0f)
+        {
+            return DopeSolution.Invalid(targetDistanceMeters);
+        }
+
+        Vector3 position = Vector3.zero;
+        Vector3 velocity = Vector3.forward * ballisticsData.muzzleVelocity;
+        Vector3 wind = CurrentWindVelocity;
+        float airDensity = AtmosphericModel.GetAirDensity(ambientTemperature, altitude);
+        float time = 0f;
+        float dt = 0.005f;
+        Vector3 previousPosition = position;
+        float previousTime = time;
+
+        for (int i = 0; i < 2000; i++)
+        {
+            previousPosition = position;
+            previousTime = time;
+
+            Vector3 relativeVelocity = velocity - wind;
+            float speed = relativeVelocity.magnitude;
+            float dragForceMagnitude = 0.5f
+                * airDensity
+                * speed * speed
+                * ballisticsData.dragCoefficient
+                * ballisticsData.bulletArea;
+
+            Vector3 dragAcceleration = Vector3.zero;
+            if (speed > 0.001f)
+            {
+                dragAcceleration = -(dragForceMagnitude / ballisticsData.bulletMass) * relativeVelocity.normalized;
+            }
+
+            velocity += (new Vector3(0f, -9.8f, 0f) + dragAcceleration) * dt;
+            position += velocity * dt;
+            time += dt;
+
+            if (position.z >= targetDistanceMeters)
+            {
+                float segment = position.z - previousPosition.z;
+                float t = Mathf.Approximately(segment, 0f)
+                    ? 1f
+                    : Mathf.Clamp01((targetDistanceMeters - previousPosition.z) / segment);
+                Vector3 impact = Vector3.Lerp(previousPosition, position, t);
+                float impactTime = Mathf.Lerp(previousTime, time, t);
+                float moaPerMeter = 3437.75f / targetDistanceMeters;
+                float elevation = -impact.y * moaPerMeter;
+                float windage = -impact.x * moaPerMeter;
+                return new DopeSolution(true, targetDistanceMeters, elevation, windage, impact.y, impact.x, impactTime);
+            }
+        }
+
+        return DopeSolution.Invalid(targetDistanceMeters);
+    }
+
     private void Fire()
     {
         if (InputLocked)
@@ -529,5 +586,32 @@ public readonly struct ShotResult
     public static ShotResult Miss(float impactDistanceMeters, float timeOfFlight, Vector3 impactPoint)
     {
         return new ShotResult(false, 0f, impactDistanceMeters, 0, timeOfFlight, impactPoint, Vector2.zero);
+    }
+}
+
+public readonly struct DopeSolution
+{
+    public DopeSolution(bool valid, float distanceMeters, float elevationMoa, float windageMoa, float dropMeters, float driftMeters, float timeOfFlight)
+    {
+        IsValid = valid;
+        DistanceMeters = distanceMeters;
+        ElevationMoa = elevationMoa;
+        WindageMoa = windageMoa;
+        DropMeters = dropMeters;
+        DriftMeters = driftMeters;
+        TimeOfFlight = timeOfFlight;
+    }
+
+    public bool IsValid { get; }
+    public float DistanceMeters { get; }
+    public float ElevationMoa { get; }
+    public float WindageMoa { get; }
+    public float DropMeters { get; }
+    public float DriftMeters { get; }
+    public float TimeOfFlight { get; }
+
+    public static DopeSolution Invalid(float distanceMeters)
+    {
+        return new DopeSolution(false, distanceMeters, 0f, 0f, 0f, 0f, 0f);
     }
 }
