@@ -79,6 +79,14 @@ public class ScopeTurretController : MonoBehaviour
         }
     }
 
+    public void ApplyScopeAdjustment(float elevationMoa, float windageMoa)
+    {
+        _elevationMOA = ClampMOA(elevationMoa);
+        _windageMOA = ClampMOA(windageMoa);
+        bulletSpawner.SetScopeAdjustment(_elevationMOA, _windageMOA);
+        LogTurretState("DOPE");
+    }
+
     private void AdjustElevation(int clicks)
     {
         _elevationMOA = ClampMOA(_elevationMOA + clicks * moaPerClick);

@@ -15,6 +15,7 @@ public class PracticeSessionController : MonoBehaviour
 
     [Header("References")]
     [SerializeField] private BulletSpawner bulletSpawner;
+    [SerializeField] private ScopeTurretController scopeTurretController;
 
     public string CourseName => _courseName;
     public int ShotsPerSession => shotsPerSession;
@@ -57,6 +58,11 @@ public class PracticeSessionController : MonoBehaviour
         if (bulletSpawner == null)
         {
             bulletSpawner = FindAnyObjectByType<BulletSpawner>();
+        }
+
+        if (scopeTurretController == null)
+        {
+            scopeTurretController = FindAnyObjectByType<ScopeTurretController>();
         }
 
         BuildHud();
@@ -102,6 +108,7 @@ public class PracticeSessionController : MonoBehaviour
         }
 
         HandleEnvironmentInput(keyboard);
+        HandleDopeInput(keyboard);
 
         if (!_sessionEnded)
         {
@@ -349,7 +356,7 @@ public class PracticeSessionController : MonoBehaviour
 
         _hintText.text = _sessionEnded
             ? "PRESS R TO START A NEW STRING"
-            : "SPACE FIRE   RMB SCOPE   SHIFT HOLD BREATH   [ ] WIND   - = TEMP   , . ALT";
+            : "SPACE FIRE   RMB SCOPE   SHIFT HOLD BREATH   T APPLY DOPE   [ ] WIND   - = TEMP   , . ALT";
 
         if (_shotLogText != null)
         {
@@ -527,6 +534,37 @@ public class PracticeSessionController : MonoBehaviour
         {
             bulletSpawner.SetAtmosphere(bulletSpawner.AmbientTemperature, bulletSpawner.Altitude + 50f);
         }
+    }
+
+    private void HandleDopeInput(Keyboard keyboard)
+    {
+        if (keyboard == null || bulletSpawner == null || !keyboard.tKey.wasPressedThisFrame)
+        {
+            return;
+        }
+
+        DopeSolution dope = bulletSpawner.CalculateDope(CurrentTaskDistance);
+        if (!dope.IsValid)
+        {
+            _lastShot = "DOPE UNAVAILABLE";
+            _cachedDope = dope;
+            _dopeRefreshTimer = 0f;
+            return;
+        }
+
+        if (scopeTurretController != null)
+        {
+            scopeTurretController.ApplyScopeAdjustment(dope.ElevationMoa, dope.WindageMoa);
+        }
+        else
+        {
+            bulletSpawner.SetScopeAdjustment(dope.ElevationMoa, dope.WindageMoa);
+        }
+
+        _cachedDope = dope;
+        _cachedDopeDistance = dope.DistanceMeters;
+        _dopeRefreshTimer = DopeRefreshInterval;
+        _lastShot = $"DOPE APPLIED   {dope.DistanceMeters:0}m   E {dope.ElevationMoa:+0.00;-0.00;0.00}   W {dope.WindageMoa:+0.00;-0.00;0.00}";
     }
 
     private static string FormatTime(float seconds)
