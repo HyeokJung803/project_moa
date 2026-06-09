@@ -10,6 +10,8 @@ public class MissionFlowController : MonoBehaviour
     [Header("References")]
     [SerializeField] private BulletSpawner bulletSpawner;
     [SerializeField] private PracticeSessionController practiceSession;
+    [SerializeField] private MouseLook mouseLook;
+    [SerializeField] private AimController aimController;
 
     private CanvasGroup _canvasGroup;
     private Text _titleText;
@@ -18,7 +20,18 @@ public class MissionFlowController : MonoBehaviour
     private bool _isMenuOpen;
     private bool _hasStarted;
     private bool _restartAllowed;
+    private bool _showingOptions;
+    private bool _resumeAfterOptions;
+    private int _settingsRow;
+    private string _returnTitle;
+    private string _returnBody;
+    private string _returnFooter;
+    private bool _returnRestartAllowed;
     private CoursePreset _selectedCourse = CoursePreset.Standard();
+
+    private const string MouseSensitivityKey = "Settings.MouseSensitivity";
+    private const string MasterVolumeKey = "Settings.MasterVolume";
+    private const string ScopeFovKey = "Settings.ScopeFov";
 
     private void Awake()
     {
@@ -32,6 +45,17 @@ public class MissionFlowController : MonoBehaviour
             practiceSession = FindAnyObjectByType<PracticeSessionController>();
         }
 
+        if (mouseLook == null)
+        {
+            mouseLook = FindAnyObjectByType<MouseLook>();
+        }
+
+        if (aimController == null)
+        {
+            aimController = FindAnyObjectByType<AimController>();
+        }
+
+        LoadSettings();
         BuildOverlay();
         ShowBriefing();
     }
@@ -57,6 +81,32 @@ public class MissionFlowController : MonoBehaviour
         Keyboard keyboard = Keyboard.current;
         if (keyboard == null)
         {
+            return;
+        }
+
+        if (keyboard.oKey.wasPressedThisFrame)
+        {
+            if (_showingOptions)
+            {
+                CloseOptions();
+            }
+            else
+            {
+                ShowOptions();
+            }
+
+            return;
+        }
+
+        if (_showingOptions)
+        {
+            if (keyboard.escapeKey.wasPressedThisFrame)
+            {
+                CloseOptions();
+                return;
+            }
+
+            HandleOptionsInput(keyboard);
             return;
         }
 
@@ -94,23 +144,25 @@ public class MissionFlowController : MonoBehaviour
     private void ShowBriefing()
     {
         _hasStarted = false;
+        _showingOptions = false;
         _titleText.text = "MOA RANGE";
         _bodyText.text =
             "MOUNTAIN PRECISION COURSE\n" +
             $"{_selectedCourse.Name}  |  {_selectedCourse.Shots} ROUND STRING  |  {_selectedCourse.ParSeconds:0}s PAR\n" +
             $"WIND {_selectedCourse.Wind.x:+0.0;-0.0;0.0}m/s  GUST +/-{_selectedCourse.Gust:0.0}  ALT {_selectedCourse.Altitude:0}m  TEMP {_selectedCourse.Temperature:+0;-0;0}C";
-        _footerText.text = "1 NOVICE   2 STANDARD   3 EXPERT   ENTER START";
+        _footerText.text = "1 NOVICE   2 STANDARD   3 EXPERT   O OPTIONS   ENTER START";
         _restartAllowed = false;
         SetMenuOpen(true);
     }
 
     private void ShowPause()
     {
+        _showingOptions = false;
         _titleText.text = "PAUSED";
         _bodyText.text =
             "RANGE IS COLD\n" +
             "CHECK YOUR LAST IMPACT, RESET YOUR PLAN, THEN CONTINUE";
-        _footerText.text = "ESC RESUME";
+        _footerText.text = "O OPTIONS   ESC RESUME";
         _restartAllowed = false;
         SetMenuOpen(true);
     }
@@ -145,6 +197,7 @@ public class MissionFlowController : MonoBehaviour
 
     private void HandleSessionEnded(PracticeSessionResult result)
     {
+        _showingOptions = false;
         _titleText.text = result.NewBest ? "NEW PERSONAL BEST" : "COURSE COMPLETE";
         string groupLine = result.GroupStats.HasSamples
             ? $"GROUP {result.GroupStats.SpreadMeters * 100f:0.0}cm   CORR E {result.GroupStats.CorrectionMoa.y:+0.0;-0.0;0.0} / W {result.GroupStats.CorrectionMoa.x:+0.0;-0.0;0.0} MOA"
@@ -154,9 +207,139 @@ public class MissionFlowController : MonoBehaviour
             $"SCORE {result.Score:000}   HITS {result.Hits}/{result.ShotsFired}   ACC {result.Accuracy:0}%\n" +
             $"BEST {result.BestScore:000}   BEST ACC {result.BestAccuracy:0}%\n" +
             groupLine;
-        _footerText.text = "ENTER OR R NEW STRING   ESC CLOSE";
+        _footerText.text = "O OPTIONS   ENTER OR R NEW STRING   ESC CLOSE";
         _restartAllowed = true;
         SetMenuOpen(true);
+    }
+
+    private void ShowOptions()
+    {
+        _resumeAfterOptions = !_isMenuOpen;
+        if (!_showingOptions)
+        {
+            _returnTitle = _titleText.text;
+            _returnBody = _bodyText.text;
+            _returnFooter = _footerText.text;
+            _returnRestartAllowed = _restartAllowed;
+        }
+
+        _showingOptions = true;
+        _restartAllowed = false;
+        SetMenuOpen(true);
+        RefreshOptionsText();
+    }
+
+    private void CloseOptions()
+    {
+        _showingOptions = false;
+
+        if (_resumeAfterOptions)
+        {
+            _resumeAfterOptions = false;
+            ResumeMission();
+            return;
+        }
+
+        _titleText.text = _returnTitle;
+        _bodyText.text = _returnBody;
+        _footerText.text = _returnFooter;
+        _restartAllowed = _returnRestartAllowed;
+    }
+
+    private void HandleOptionsInput(Keyboard keyboard)
+    {
+        if (keyboard.upArrowKey.wasPressedThisFrame)
+        {
+            _settingsRow = (_settingsRow + 2) % 3;
+            RefreshOptionsText();
+        }
+        else if (keyboard.downArrowKey.wasPressedThisFrame)
+        {
+            _settingsRow = (_settingsRow + 1) % 3;
+            RefreshOptionsText();
+        }
+
+        float direction = 0f;
+        if (keyboard.leftArrowKey.wasPressedThisFrame)
+        {
+            direction = -1f;
+        }
+        else if (keyboard.rightArrowKey.wasPressedThisFrame)
+        {
+            direction = 1f;
+        }
+
+        if (!Mathf.Approximately(direction, 0f))
+        {
+            AdjustCurrentSetting(direction);
+            RefreshOptionsText();
+        }
+    }
+
+    private void AdjustCurrentSetting(float direction)
+    {
+        if (_settingsRow == 0 && mouseLook != null)
+        {
+            mouseLook.SetMouseSensitivity(mouseLook.MouseSensitivity + direction * 10f);
+            PlayerPrefs.SetFloat(MouseSensitivityKey, mouseLook.MouseSensitivity);
+        }
+        else if (_settingsRow == 1)
+        {
+            AudioListener.volume = Mathf.Clamp01(AudioListener.volume + direction * 0.05f);
+            PlayerPrefs.SetFloat(MasterVolumeKey, AudioListener.volume);
+        }
+        else if (_settingsRow == 2 && aimController != null)
+        {
+            aimController.SetAimFov(aimController.AimFov - direction * 1f);
+            PlayerPrefs.SetFloat(ScopeFovKey, aimController.AimFov);
+        }
+
+        PlayerPrefs.Save();
+    }
+
+    private void RefreshOptionsText()
+    {
+        _titleText.text = "OPTIONS";
+        _bodyText.text =
+            FormatOptionRow(0, $"MOUSE SENS   {GetMouseSensitivity():0}") + "\n" +
+            FormatOptionRow(1, $"MASTER VOL   {AudioListener.volume * 100f:0}%") + "\n" +
+            FormatOptionRow(2, $"SCOPE ZOOM   {GetScopeZoomLabel()}");
+        _footerText.text = "UP/DOWN SELECT   LEFT/RIGHT ADJUST   O OR ESC BACK";
+    }
+
+    private string FormatOptionRow(int row, string label)
+    {
+        return _settingsRow == row ? "> " + label + " <" : "  " + label;
+    }
+
+    private float GetMouseSensitivity()
+    {
+        return mouseLook != null ? mouseLook.MouseSensitivity : 0f;
+    }
+
+    private string GetScopeZoomLabel()
+    {
+        if (aimController == null)
+        {
+            return "--";
+        }
+
+        return $"{aimController.AimFov:0} FOV";
+    }
+
+    private void LoadSettings()
+    {
+        if (mouseLook != null)
+        {
+            mouseLook.SetMouseSensitivity(PlayerPrefs.GetFloat(MouseSensitivityKey, mouseLook.MouseSensitivity));
+        }
+
+        AudioListener.volume = PlayerPrefs.GetFloat(MasterVolumeKey, AudioListener.volume);
+
+        if (aimController != null)
+        {
+            aimController.SetAimFov(PlayerPrefs.GetFloat(ScopeFovKey, aimController.AimFov));
+        }
     }
 
     private void ApplySelectedCourse()

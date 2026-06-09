@@ -58,6 +58,7 @@ public class AimController : MonoBehaviour
     public bool IsHoldingBreath => _isHoldingBreath;
     public float Breath01 => _breath01;
     public float HeartRateBpm => _heartRateBpm;
+    public float AimFov => aimFov;
 
     private bool _isAiming;
     private float _aimProgress;
@@ -142,6 +143,11 @@ public class AimController : MonoBehaviour
     {
         _recoilPitch = Mathf.Clamp(_recoilPitch + pitchKick, 0f, maxRecoilPitch);
         _recoilYaw = Mathf.Clamp(_recoilYaw + yawKick, -maxRecoilYaw, maxRecoilYaw);
+    }
+
+    public void SetAimFov(float fov)
+    {
+        aimFov = Mathf.Clamp(fov, 8f, hipFov - 5f);
     }
 
     private void HandleFired()

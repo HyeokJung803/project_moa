@@ -4,6 +4,8 @@ public class MouseLook : MonoBehaviour
 {
     public float mouseSensitivity = 100f;
 
+    public float MouseSensitivity => mouseSensitivity;
+
     private Transform _gunTransform;
     private float _xRotation = 0f;
 
@@ -23,5 +25,10 @@ public class MouseLook : MonoBehaviour
         transform.localEulerAngles = new Vector3(_xRotation, 0f, 0f);
 
         _gunTransform.Rotate(Vector3.up * mouseX, Space.World);
+    }
+
+    public void SetMouseSensitivity(float sensitivity)
+    {
+        mouseSensitivity = Mathf.Clamp(sensitivity, 30f, 240f);
     }
 }
